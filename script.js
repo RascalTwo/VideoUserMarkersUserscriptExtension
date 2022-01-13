@@ -5,7 +5,71 @@
  */
 function delay(ms) {
 	return new Promise(r => setTimeout(r, ms))
-}
+};
+
+async function dialog(type, message) {
+	return new Promise(resolve => {
+
+		let canceled = false;
+
+		const form = document.createElement('form');
+		form.style.position = 'absolute';
+		form.style.zIndex = 2;
+		form.style.top = '50%';
+		form.style.left = '50%';
+		form.style.transform = 'translate(-50%, -50%)';
+		form.style.backgroundColor = 'black'
+		form.style.display = 'flex'
+		form.style.flexDirection = 'column'
+		form.textContent = message;
+		const handleSubmit = e => {
+			e?.preventDefault();
+			const response = canceled ? null : generateResponse();
+			form.remove();
+			window.removeEventListener('keydown', handleDialogEscape);
+			return resolve(response);
+		}
+		form.addEventListener('submit', handleSubmit)
+
+		let generateResponse = () => undefined;
+
+		switch (type) {
+			case 'prompt':
+				const textarea = document.createElement('textarea');
+				textarea.style.flex = 1;
+				form.appendChild(textarea);
+
+				generateResponse = () => textarea.value.trim();
+				break;
+		}
+		const actions = document.createElement('div');
+		actions.style.flex = 1
+		actions.style.display = 'flex';
+		const submit = document.createElement('button');
+		submit.style.flex = 1
+		submit.textContent = 'OK'
+		actions.appendChild(submit);
+
+		const cancel = document.createElement('button');
+		cancel.style.flex = 1
+		cancel.textContent = 'Cancel'
+		cancel.addEventListener('click', () => canceled = true)
+		actions.appendChild(cancel);
+		form.appendChild(actions)
+
+		document.body.appendChild(form);
+		const handleDialogEscape = e => {
+			if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+			canceled = true;
+			return handleSubmit();
+		}
+		window.addEventListener('keydown', handleDialogEscape)
+		setTimeout(() => {
+			if (type === 'prompt') form.querySelector('textarea').focus();
+			else form.focus();
+		}, 250);
+	});
+};
 
 /**
  * Click nodes one by one in {@link queries}, waiting until they are in the DOM one by one
@@ -78,8 +142,9 @@ function getLoginName() {
  */
 function* parseMinimalChapters(text) {
 	for (const line of text.trim().split('\n').map(line => line.trim()).filter(Boolean)) {
-		const [dhms, name] = line.split('\t');
+		const [dhms, ...otherWords] = line.split(/\s/);
 		const seconds = DHMStoSeconds(dhms.split(':').map(Number));
+		const name = otherWords.join(' ');
 		yield { name, seconds }
 	}
 }
@@ -178,8 +243,7 @@ ids = (() => {
 	 */
 	async function getVideoID(promptUser) {
 		if (promptUser && vid === null) {
-			// TODO - replace with HTML dialog
-			const response = prompt('Video ID could not be detected, please provide it:');
+			const response = await dialog('prompt', 'Video ID could not be detected, please provide it:');
 			if (!response) return;
 			vid = response;
 		}
@@ -236,7 +300,7 @@ r2 = await(async () => {
 		 * Get X and Y of the seconds provided
 		 *
 		 * @param {number} seconds
-		 * @returns {{ x: number, y: number }}
+		 * @returns {{ x: number, y: number, minX: number, maxX: number }}
 		 */
 		function getTimeXY(seconds) {
 			const bar = document.querySelector('[data-a-target="player-seekbar"]');
@@ -249,7 +313,7 @@ r2 = await(async () => {
 			const percentage = seconds / duration;
 			const x = ((maxX - minX) * percentage) + minX;
 			const y = (rect.bottom + rect.top) / 2
-			return { x, y }
+			return { x, y, minX, maxX }
 		}
 
 		/**
@@ -257,12 +321,24 @@ r2 = await(async () => {
 		 *
 		 * @param {number} seconds
 		 */
-		function setTime(seconds) {
+		async function setTime(seconds) {
 			const bar = document.querySelector('[data-a-target="player-seekbar"]');
 
-			const event = new MouseEvent('click', { clientX: getTimeXY(seconds).x });
-			// Directly hook into onClick of react element, bar.dispatchEvent(event) did NOT work
-			Object.entries(bar).find(([key]) => key.startsWith('__reactEventHandlers'))[1].onClick(event);
+			let { minX, x, maxX } = getTimeXY(seconds)
+			// Binary search elimination to find exact X to get to desired seconds
+			while (true) {
+				const event = new MouseEvent('click', { clientX: x });
+				// Directly hook into onClick of react element, bar.dispatchEvent(event) did NOT work
+				Object.entries(bar).find(([key]) => key.startsWith('__reactEventHandlers'))[1].onClick(event);
+				await delay(50);
+				const current = await getCurrentTimeLive();
+				if (current === seconds) break;
+				if (current > seconds) maxX = x;
+				if (current < seconds) minX = x;
+				x = (maxX + minX) / 2
+				// Escape hatches: if min becomes greater then max or the difference between the min and max is less then a 10th of a pixel
+				if (minX >= maxX || Math.abs(minX - maxX) <= 0.1) break;
+			}
 		}
 
 		/**
@@ -279,7 +355,7 @@ r2 = await(async () => {
 		 * @param {MouseEvent} e
 		 */
 		const handleMarkerClick = (chapter, e) => {
-			setTime(chapter.seconds)
+			return setTime(chapter.seconds)
 		}
 
 		chapterChangeHandlers.push(function renderChapters() {
@@ -359,8 +435,7 @@ r2 = await(async () => {
 	 */
 	const addChapterHere = async () => {
 		const seconds = await getCurrentTimeLive();
-		// TODO - replace with dialog
-		const name = prompt('Name');
+		const name = await dialog('prompt', 'Name');
 		if (!name) return;
 
 		chapters.push({ seconds, name });
@@ -372,7 +447,7 @@ r2 = await(async () => {
 	 * Import minimal chapter text
 	 */
 	async function importMinimal() {
-		const markdown = await navigator.clipboard.readText()
+		const markdown = await dialog('prompt', 'Minimal Text:')
 		chapters.splice(0, chapters.length, ...Array.from(parseMinimalChapters(markdown)));
 		return handleChapterUpdate();
 	}
@@ -383,18 +458,17 @@ r2 = await(async () => {
 	 */
 	const exportMarkdown = () => {
 		navigator.clipboard.writeText(Array.from(chaptersToMinimal(chapters)).join('\n'));
-		alert('Exported to Clipboard!');
+		return dialog('alert', 'Exported to Clipboard!');
 	}
 
 	/**
 	 * Menu for importing or exporting
 	 */
-	const menu = () => {
-		// TODO - replace with dialog
-		const choice = prompt('(I)mport or (E)xport')
+	const menu = async () => {
+		const choice = await dialog('prompt', '(I)mport or (E)xport')
 		if (!choice) return;
-		if (choice.toLowerCase() === 'i') importMinimal()
-		else if (choice.toLowerCase() === 'e') exportMarkdown();
+		if (choice.toLowerCase() === 'i') return importMinimal()
+		else if (choice.toLowerCase() === 'e') return exportMarkdown();
 	}
 
 	/**
@@ -403,8 +477,8 @@ r2 = await(async () => {
 	 * @param {KeyboardEvent} e
 	 */
 	const keydownHandler = e => {
-		// TODO - change key to somthing else, C toggles the chat in AlternatePlayer
-		if (e.key === 'c') menu()
+		if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+		if (e.key === 'm') menu();
 		if (e.key === 'b') addChapterHere()
 	};
 	window.addEventListener('keydown', keydownHandler);
