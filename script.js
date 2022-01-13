@@ -19,6 +19,7 @@ async function dialog(type, message) {
 		form.style.left = '50%';
 		form.style.transform = 'translate(-50%, -50%)';
 		form.style.backgroundColor = 'black'
+		form.style.color = 'white'
 		form.style.display = 'flex'
 		form.style.flexDirection = 'column'
 		form.textContent = message;
@@ -37,6 +38,14 @@ async function dialog(type, message) {
 			case 'prompt':
 				const textarea = document.createElement('textarea');
 				textarea.style.flex = 1;
+				// TODO - trim this down to just the required handlers/preventions
+				const overwriteAlternateHandlers = e => {
+					e.stopImmediatePropagation();
+					e.stopPropagation();
+				}
+				textarea.addEventListener('keydown', overwriteAlternateHandlers);
+				textarea.addEventListener('keypress', overwriteAlternateHandlers);
+				textarea.addEventListener('keyup', overwriteAlternateHandlers);
 				form.appendChild(textarea);
 
 				generateResponse = () => textarea.value.trim();
@@ -478,7 +487,7 @@ r2 = await(async () => {
 	 */
 	const keydownHandler = e => {
 		if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
-		if (e.key === 'm') menu();
+		if (e.key === 'u') menu();
 		if (e.key === 'b') addChapterHere()
 	};
 	window.addEventListener('keydown', keydownHandler);
