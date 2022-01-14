@@ -402,6 +402,7 @@ r2 = (async () => {
 		 * @param {MouseEvent} e
 		 */
 		const handleMarkerClick = (chapter, e) => {
+			e.preventDefault()
 			if (e.button === 0) return setTime(chapter.seconds);
 			return editChapter(chapter);
 		}
@@ -420,6 +421,7 @@ r2 = (async () => {
 				node.style.zIndex = 9000;
 				node.textContent = i
 				node.addEventListener('click', handleMarkerClick.bind(null, chapter))
+				node.addEventListener('contextmenu', handleMarkerClick.bind(null, chapter))
 				document.body.appendChild(node);
 			}
 		})
