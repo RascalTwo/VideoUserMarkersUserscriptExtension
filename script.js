@@ -1,3 +1,11 @@
+// ==UserScript==
+// @name     Twitch Chapters
+// @version  1
+// @grant    none
+// @match    https://www.twitch.tv/*
+// ==/UserScript==
+console.log('R2 Twitch Chapters Started')
+
 /**
  * Delay execution by {@link ms milliseconds}
  *
@@ -7,14 +15,14 @@ function delay(ms) {
 	return new Promise(r => setTimeout(r, ms))
 };
 
-async function dialog(type, message) {
+async function dialog(type, message, prep) {
 	return new Promise(resolve => {
 
 		let canceled = false;
 
 		const form = document.createElement('form');
 		form.style.position = 'absolute';
-		form.style.zIndex = 2;
+		form.style.zIndex = 9000;
 		form.style.top = '50%';
 		form.style.left = '50%';
 		form.style.transform = 'translate(-50%, -50%)';
@@ -76,6 +84,7 @@ async function dialog(type, message) {
 		setTimeout(() => {
 			if (type === 'prompt') form.querySelector('textarea').focus();
 			else form.focus();
+			prep?.(form)
 		}, 250);
 	});
 };
@@ -164,8 +173,10 @@ function* parseMinimalChapters(text) {
  * @param {{ name: string, seconds: number }[]} chapters
  */
 function* chaptersToMinimal(chapters) {
-	for (const chapter of chapters.sort((a, b) => a.seconds - b.seconds)) {
-		const dhms = secondsToDHMS(chapter.seconds)
+	chapters.sort((a, b) => a.seconds - b.seconds);
+	const places = secondsToDHMS(chapters[chapters.length - 1].seconds).split(':').length
+	for (const chapter of chapters) {
+		const dhms = secondsToDHMS(chapter.seconds, places)
 		yield [dhms, chapter.name].join('\t');
 	}
 }
@@ -193,14 +204,14 @@ function DHMStoSeconds(parts) {
  * @param {number} seconds
  * @returns {string}
  */
-function secondsToDHMS(seconds) {
+function secondsToDHMS(seconds, minimalPlaces=1) {
 	// TODO - fix this rushed math
 	const days = parseInt(seconds / 86400)
 	const hours = parseInt((seconds - (days * 86400)) / 3600)
 	const minutes = parseInt((seconds % (60 * 60)) / 60)
-	const parts = [days, hours, minutes, seconds % 60]
-	while (!parts[0]) parts.shift()
-	return parts.join(':')
+	const parts = [days, hours, minutes, parseInt(seconds % 60)]
+	while (!parts[0] && parts.length > minimalPlaces) parts.shift()
+	return parts.map(num => num.toString().padStart(2, '0')).join(':')
 }
 
 function generateTwitchTimestamp(seconds) {
@@ -287,10 +298,37 @@ async function trackDelay(promise) {
 
 
 // Run cleanup if previously loaded, development only
-window.r2?.cleanup?.()
-r2 = await(async () => {
+window.r2?.then(ret => ret.cleanup());
+r2 = (async () => {
 	// Get last segment of URL, which is the video ID
 	const chapters = JSON.parse(localStorage.getItem('r2_chapters_' + await ids.getVideoID()) ?? '[]');
+
+	await delay(5000);
+
+	async function editChapter(chapter) {
+		const minimal = await dialog('prompt', 'Edit Chapter:', form => {
+			form.querySelector('textarea').value = Array.from(chaptersToMinimal([chapter])).join('\n')
+		});
+		if (minimal === null) return;
+		const edited = Array.from(parseMinimalChapters(minimal))[0]
+		if (!edited) {
+			const index = chapters.findIndex(c => c.seconds === chapter.seconds)
+			chapters.splice(index, 1);
+		}
+		else {
+			Object.assign(chapter, edited)
+		}
+		return handleChapterUpdate();
+	}
+
+	async function editAllChapters() {
+		const minimal = await dialog('prompt', 'Edit Chapters', form => {
+			form.querySelector('textarea').value = Array.from(chaptersToMinimal(chapters)).join('\n')
+		});
+		if (minimal === null) return;
+		chapters.splice(0, chapters.length, ...Array.from(parseMinimalChapters(minimal)));
+		return handleChapterUpdate();
+	}
 
 	// Functions to call to remove script from site
 	let cleanupFuncs = []
@@ -364,7 +402,8 @@ r2 = await(async () => {
 		 * @param {MouseEvent} e
 		 */
 		const handleMarkerClick = (chapter, e) => {
-			return setTime(chapter.seconds)
+			if (e.button === 0) return setTime(chapter.seconds);
+			return editChapter(chapter);
 		}
 
 		chapterChangeHandlers.push(function renderChapters() {
@@ -378,7 +417,7 @@ r2 = await(async () => {
 				node.style.top = y + 'px';
 				// TODO - properly position element in center of where it should be
 				node.style.left = (x - 2.5) + 'px';
-				node.style.zIndex = 1;
+				node.style.zIndex = 9000;
 				node.textContent = i
 				node.addEventListener('click', handleMarkerClick.bind(null, chapter))
 				document.body.appendChild(node);
@@ -474,10 +513,11 @@ r2 = await(async () => {
 	 * Menu for importing or exporting
 	 */
 	const menu = async () => {
-		const choice = await dialog('prompt', '(I)mport or (E)xport')
+		const choice = await dialog('prompt', '(I)mport, E(x)port, (E)dit')
 		if (!choice) return;
 		if (choice.toLowerCase() === 'i') return importMinimal()
-		else if (choice.toLowerCase() === 'e') return exportMarkdown();
+		else if (choice.toLowerCase() === 'x') return exportMarkdown();
+		else if (choice.toLowerCase() === 'e') return editAllChapters();
 	}
 
 	/**
@@ -510,5 +550,6 @@ r2 = await(async () => {
 
 	if (chapters.length) await handleChapterUpdate();
 
+	console.log('R2 Twitch Chapters Finished')
 	return { chapters, cleanup };
 })();
