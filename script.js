@@ -451,7 +451,12 @@ r2 = (async () => {
 
 		const index = chapters.findIndex(c => c.seconds === chapter.seconds)
 		chapters.splice(index, 1);
-		handleChapterUpdate();
+		return handleChapterUpdate();
+	}
+
+	function adjustChapterSeconds(chapter, change) {
+		chapter.seconds += change;
+		return handleChapterUpdate();
 	}
 
 	const { removeChapterList, renderChapterList, setChapterList } = (() => {
@@ -465,7 +470,7 @@ r2 = (async () => {
 			const list = document.createElement('ul')
 			list.className = 'r2_chapter_list'
 			list.style.position = 'absolute'
-			list.style.zIndex = 9000;
+			list.style.zIndex = 9001;
 			list.style.backgroundColor = '#18181b'
 			list.style.padding = '1em';
 			list.style.borderRadius = '1em';
@@ -518,10 +523,42 @@ r2 = (async () => {
 
 			header.appendChild(closeButton);
 
+
+			chapters.sort((a, b) => a.seconds - b.seconds);
+			const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
+
 			for (const chapter of chapters) {
 				const li = document.createElement('li')
-				li.textContent = `${secondsToDHMS(chapter.seconds)} ${chapter.name}`
-				li.style.cursor = 'pointer'
+				li.style.display = 'flex';
+				li.style.alignItems = 'center';
+
+				const time = document.createElement('span');
+				time.style.fontFamily = 'monospace'
+				const decrease = document.createElement('button');
+				decrease.className = getButtonClass();
+				decrease.textContent = '-';
+				decrease.title = 'Subtract 1 second';
+				decrease.addEventListener('click', adjustChapterSeconds.bind(null, chapter, -1));
+				time.appendChild(decrease);
+
+				time.appendChild(document.createTextNode(secondsToDHMS(chapter.seconds, places)));
+
+				const increase = document.createElement('button');
+				increase.className = getButtonClass();
+				increase.textContent = '+';
+				increase.title = 'Add 1 second';
+				increase.addEventListener('click', adjustChapterSeconds.bind(null, chapter, 1));
+				time.appendChild(increase);
+				li.appendChild(time);
+
+				const title = document.createElement('span');
+				title.textContent = chapter.name;
+				title.style.cursor = 'pointer';
+				title.style.flex = 1;
+				title.style.textAlign = 'center';
+				if (isVOD()) title.addEventListener('click', seekToChapter.bind(null, chapter))
+				title.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
+				li.appendChild(title);
 
 				const deleteBtn = document.createElement('button')
 				deleteBtn.className = getButtonClass();
@@ -530,8 +567,6 @@ r2 = (async () => {
 				deleteBtn.addEventListener('click', deleteChapter.bind(null, chapter))
 				li.appendChild(deleteBtn);
 
-				if (isVOD()) li.addEventListener('click', seekToChapter.bind(null, chapter))
-				li.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
 				list.appendChild(li);
 			}
 
