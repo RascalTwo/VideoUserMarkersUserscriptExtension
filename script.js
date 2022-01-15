@@ -396,7 +396,7 @@ r2 = (async () => {
 	 * @returns {{ x: number, y: number, minX: number, maxX: number }}
 	 */
 	function getTimeXY(seconds) {
-		const bar = document.querySelector('[data-a-target="player-seekbar"]');
+		const bar = document.querySelector('.seekbar-bar');
 
 		const rect = bar.getBoundingClientRect();
 		const minX = rect.left;
@@ -404,7 +404,7 @@ r2 = (async () => {
 
 		const duration = Number(document.querySelector('[data-a-target="player-seekbar-duration"]').dataset.aValue);
 		const percentage = seconds / duration;
-		const x = ((maxX - minX) * percentage) + minX;
+		const x = ((maxX - minX) * percentage);
 		const y = (rect.bottom + rect.top) / 2
 		return { x, y, minX, maxX }
 	}
@@ -436,11 +436,15 @@ r2 = (async () => {
 
 	function seekToChapter(chapter, e) {
 		e?.preventDefault();
+		e?.stopImmediatePropagation()
+		e?.stopPropagation()
 		return setTime(chapter.seconds);
 	}
 
 	function startEditingChapter(chapter, e) {
 		e?.preventDefault();
+		e?.stopImmediatePropagation()
+		e?.stopPropagation()
 		return editChapter(chapter);
 	}
 
@@ -620,7 +624,25 @@ r2 = (async () => {
 		async () => localStorage.setItem('r2_chapters_' + await ids.getVideoID(), JSON.stringify(chapters)),
 		renderChapterList
 	]
+
 	if (isVOD()) {
+		cleanupFuncs.push((() => {
+			const chapterName = document.createElement('span');
+			chapterName.style.paddingLeft = '1em';
+			document.querySelector('[data-a-target="player-volume-slider"]').parentNode.parentNode.parentNode.parentNode.appendChild(chapterName);
+
+			const chapterTitleInterval = setInterval(async () => {
+				const now = await getCurrentTimeLive()
+				const name = chapters.filter(c => c.seconds <= now).slice(-1)[0]?.name
+
+				if (name && chapterName.textContent !== name) chapterName.textContent = name;
+			}, 1000);
+
+			return () => {
+				clearInterval(chapterTitleInterval)
+				chapterName.remove();
+			}
+		})());
 		/**
 		 * Remove chapter DOM elements, done before rendering and cleanup
 		 */
@@ -630,20 +652,21 @@ r2 = (async () => {
 
 		chapterChangeHandlers.push(function renderChapters() {
 			removeDOMChapters();
-			for (const [i, chapter] of chapters.entries()) {
+			const bar = document.querySelector('.seekbar-bar');
+			for (const chapter of chapters) {
 				const node = document.createElement('button')
 				node.className = 'r2_chapter'
 				node.title = chapter.name;
 				node.style.position = 'absolute';
-				const { x, y } = getTimeXY(chapter.seconds)
-				node.style.top = y - 60 + 'px';
-				// TODO - properly position element in center of where it should be
-				node.style.left = (x - 2.5) + 'px';
-				node.style.zIndex = 9000;
-				node.textContent = i
+				node.style.width = '1.75px'
+				node.style.height = '10px';
+				node.style.backgroundColor = 'black';
+
+				node.style.left = getTimeXY(chapter.seconds).x + 'px';
+
 				node.addEventListener('click', seekToChapter.bind(null, chapter))
 				node.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
-				document.body.appendChild(node);
+				bar.appendChild(node);
 			}
 		})
 
