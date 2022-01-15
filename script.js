@@ -87,26 +87,31 @@ async function dialog(type, message, sideEffect) {
 				sideEffect
 			],
 			'prompt': () => {
-				const textarea = document.createElement('textarea');
-				textarea.setAttribute('rows', 10);
+				const [type, value] = sideEffect?.(form) ?? ['input', ''];
+				const input = document.createElement(type);
+				input.value = value
+				if (type === 'textarea') input.setAttribute('rows', 10);
+
 				// TODO - trim this down to just the required handlers/preventions
 				const overwriteAlternateHandlers = e => {
 					e.stopImmediatePropagation();
 					e.stopPropagation();
 				}
-				textarea.addEventListener('keydown', overwriteAlternateHandlers);
-				textarea.addEventListener('keypress', overwriteAlternateHandlers);
-				textarea.addEventListener('keyup', overwriteAlternateHandlers);
-				form.appendChild(textarea);
+				input.addEventListener('keydown', overwriteAlternateHandlers);
+				input.addEventListener('keypress', overwriteAlternateHandlers);
+				input.addEventListener('keyup', overwriteAlternateHandlers);
+
+				form.appendChild(input);
 				return [
-					() => textarea.value.trim(),
-					() => form.querySelector('textarea').focus(),
+					() => input.value.trim(),
+					() => input.focus(),
 					() => {
-						const lines = textarea.value.split('\n')
+						if (type === 'input') return;
+						const lines = input.value.split('\n')
 						const longestLine = Math.max(...lines.map(line => line.length))
-						textarea.style.width = Math.max(textarea.offsetWidth, longestLine * getCHWidth()) + 'px';
+						input.style.width = Math.max(input.offsetWidth, longestLine * getCHWidth()) + 'px';
 					},
-					sideEffect
+					NOOP
 				]
 			},
 			'choose': () => {
@@ -384,9 +389,7 @@ r2 = (async () => {
 	await delay(5000);
 
 	async function editChapter(chapter) {
-		const minimal = await dialog('prompt', 'Edit Chapter:', form => {
-			form.querySelector('textarea').value = Array.from(chaptersToMinimal([chapter])).join('\n')
-		});
+		const minimal = await dialog('prompt', 'Edit Chapter:', () => ['input', Array.from(chaptersToMinimal([chapter]))[0]]);
 		if (minimal === null) return;
 		const edited = Array.from(parseMinimalChapters(minimal))[0]
 		if (!edited) {
@@ -400,9 +403,7 @@ r2 = (async () => {
 	}
 
 	async function editAllChapters() {
-		const minimal = await dialog('prompt', 'Edit Chapters', form => {
-			form.querySelector('textarea').value = Array.from(chaptersToMinimal(chapters)).join('\n')
-		});
+		const minimal = await dialog('prompt', 'Edit Chapters', () => ['textarea', Array.from(chaptersToMinimal(chapters)).join('\n')]);
 		if (minimal === null) return;
 		chapters.splice(0, chapters.length, ...Array.from(parseMinimalChapters(minimal)));
 		return handleChapterUpdate();
@@ -563,7 +564,7 @@ r2 = (async () => {
 	 */
 	const addChapterHere = async () => {
 		let seconds = await getCurrentTimeLive();
-		let name = await dialog('prompt', 'Name');
+		let name = await dialog('prompt', 'Chapter Name');
 		if (!name) return;
 
 		if (['t+', 't-'].some(cmd => name.toLowerCase().startsWith(cmd))) {
@@ -583,7 +584,8 @@ r2 = (async () => {
 	 * Import minimal chapter text
 	 */
 	async function importMinimal() {
-		const markdown = await dialog('prompt', 'Minimal Text:')
+		const markdown = await dialog('prompt', 'Minimal Text:', () => ['textarea', ''])
+		if (markdown === null) return;
 		chapters.splice(0, chapters.length, ...Array.from(parseMinimalChapters(markdown)));
 		return handleChapterUpdate();
 	}
