@@ -627,7 +627,7 @@ r2 = (async () => {
 				node.title = chapter.name;
 				node.style.position = 'absolute';
 				const { x, y } = getTimeXY(chapter.seconds)
-				node.style.top = y + 'px';
+				node.style.top = y - 60 + 'px';
 				// TODO - properly position element in center of where it should be
 				node.style.left = (x - 2.5) + 'px';
 				node.style.zIndex = 9000;
