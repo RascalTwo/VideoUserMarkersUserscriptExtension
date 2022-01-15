@@ -33,7 +33,7 @@ function getCHWidth() {
  * @returns {string}
  */
 function getButtonClass() {
-	return document.querySelector('[data-a-target="subscribe-button"]')?.className ?? '';
+	return document.querySelector('[data-a-target="top-nav-get-bits-button"]')?.className ?? '';
 }
 
 /**
