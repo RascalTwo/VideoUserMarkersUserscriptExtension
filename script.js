@@ -7,6 +7,27 @@
 console.log('R2 Twitch Chapters Started')
 
 /**
+ * Do nothing
+ */
+function NOOP() { }
+
+/**
+ * Get the Pixel width of the `ch` unit
+ *
+ * @returns {number}
+ */
+function getCHWidth(){
+	const node = document.createElement('div')
+	node.style.position = 'absolute'
+	node.textContent = 'M';
+
+	document.body.appendChild(node);
+	const width = node.offsetWidth;
+	node.remove();
+	return width;
+}
+
+/**
  * Delay execution by {@link ms milliseconds}
  *
  * @param {number} ms
@@ -15,6 +36,13 @@ function delay(ms) {
 	return new Promise(r => setTimeout(r, ms))
 };
 
+/**
+ * Show customizable dialog
+ *
+ * @param {'alert' | 'prompt'} type
+ * @param {string} message
+ * @param {(form: HTMLFormElement) => void} prep
+ */
 async function dialog(type, message, prep) {
 	return new Promise(resolve => {
 
@@ -26,7 +54,9 @@ async function dialog(type, message, prep) {
 		form.style.top = '50%';
 		form.style.left = '50%';
 		form.style.transform = 'translate(-50%, -50%)';
-		form.style.backgroundColor = 'black'
+		form.style.backgroundColor = '#18181b'
+		form.style.padding = '1em';
+		form.style.borderRadius = '1em';
 		form.style.color = 'white'
 		form.style.display = 'flex'
 		form.style.flexDirection = 'column'
@@ -40,12 +70,15 @@ async function dialog(type, message, prep) {
 		}
 		form.addEventListener('submit', handleSubmit)
 
-		let generateResponse = () => undefined;
-
-		switch (type) {
-			case 'prompt':
+		const [generateResponse, pre, post] = {
+			'alert': () => [
+				() => true,
+				() => form.querySelector('button').focus(),
+				NOOP
+			],
+			'prompt': () => {
 				const textarea = document.createElement('textarea');
-				textarea.style.flex = 1;
+				textarea.setAttribute('rows', 10);
 				// TODO - trim this down to just the required handlers/preventions
 				const overwriteAlternateHandlers = e => {
 					e.stopImmediatePropagation();
@@ -55,10 +88,18 @@ async function dialog(type, message, prep) {
 				textarea.addEventListener('keypress', overwriteAlternateHandlers);
 				textarea.addEventListener('keyup', overwriteAlternateHandlers);
 				form.appendChild(textarea);
+				return [
+					() => textarea.value.trim(),
+					() => form.querySelector('textarea').focus(),
+					() => {
+						const lines = textarea.value.split('\n')
+						const longestLine = Math.max(...lines.map(line => line.length))
+						textarea.style.width = Math.max(textarea.offsetWidth, longestLine * getCHWidth()) + 'px';
+					}
+				]
+			}
+		}[type]();
 
-				generateResponse = () => textarea.value.trim();
-				break;
-		}
 		const actions = document.createElement('div');
 		actions.style.flex = 1
 		actions.style.display = 'flex';
@@ -82,9 +123,9 @@ async function dialog(type, message, prep) {
 		}
 		window.addEventListener('keydown', handleDialogEscape)
 		setTimeout(() => {
-			if (type === 'prompt') form.querySelector('textarea').focus();
-			else form.focus();
+			pre();
 			prep?.(form)
+			post();
 		}, 250);
 	});
 };
