@@ -485,8 +485,8 @@ r2 = (async () => {
 			list.style.top = last.y + 'px'
 			list.style.left = last.x + 'px'
 
-			const header = document.createElement('li')
-			header.textContent = 'Chapters List'
+			const header = document.createElement('h4');
+			header.textContent = 'Chapter List'
 			header.backgroundColor = '#08080b'
 			header.style.userSelect = 'none';
 			header.style.padding = '0'
