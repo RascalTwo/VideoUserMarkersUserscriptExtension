@@ -16,7 +16,7 @@ function NOOP() { }
  *
  * @returns {number}
  */
-function getCHWidth(){
+function getCHWidth() {
 	const node = document.createElement('div')
 	node.style.position = 'absolute'
 	node.textContent = 'M';
@@ -25,6 +25,15 @@ function getCHWidth(){
 	const width = node.offsetWidth;
 	node.remove();
 	return width;
+}
+
+/**
+ * Get CSS class of twitch buttons
+ *
+ * @returns {string}
+ */
+function getButtonClass() {
+	return document.querySelector('[data-a-target="subscribe-button"]')?.className ?? '';
 }
 
 /**
@@ -39,11 +48,11 @@ function delay(ms) {
 /**
  * Show customizable dialog
  *
- * @param {'alert' | 'prompt'} type
+ * @param {'alert' | 'prompt' | 'choose'} type
  * @param {string} message
- * @param {(form: HTMLFormElement) => void} prep
+ * @param {(form: HTMLFormElement) => any} sideEffect
  */
-async function dialog(type, message, prep) {
+async function dialog(type, message, sideEffect) {
 	return new Promise(resolve => {
 
 		let canceled = false;
@@ -70,11 +79,12 @@ async function dialog(type, message, prep) {
 		}
 		form.addEventListener('submit', handleSubmit)
 
-		const [generateResponse, pre, post] = {
+		const [generateResponse, pre, post, afterCreated] = {
 			'alert': () => [
 				() => true,
-				() => form.querySelector('button').focus(),
-				NOOP
+				() => form.querySelector('button[type="submit"]').focus(),
+				NOOP,
+				sideEffect
 			],
 			'prompt': () => {
 				const textarea = document.createElement('textarea');
@@ -95,7 +105,29 @@ async function dialog(type, message, prep) {
 						const lines = textarea.value.split('\n')
 						const longestLine = Math.max(...lines.map(line => line.length))
 						textarea.style.width = Math.max(textarea.offsetWidth, longestLine * getCHWidth()) + 'px';
-					}
+					},
+					sideEffect
+				]
+			},
+			'choose': () => {
+				form.appendChild(Object.entries(sideEffect(form)).reduce((fragment, [key, value]) => {
+					const button = document.createElement('button');
+					button.className = getButtonClass();
+					button.textContent = key;
+					button.value = JSON.stringify(value);
+					button.addEventListener('click', () => form.dataset.value = button.value);
+
+					fragment.appendChild(button);
+					return fragment;
+				}, document.createDocumentFragment()));
+				return [
+					() => JSON.parse(form.dataset.value),
+					() => {
+						form.querySelector('button[type="submit"]').remove()
+						form.querySelector('button').focus()
+					},
+					NOOP,
+					NOOP
 				]
 			}
 		}[type]();
@@ -104,11 +136,14 @@ async function dialog(type, message, prep) {
 		actions.style.flex = 1
 		actions.style.display = 'flex';
 		const submit = document.createElement('button');
+		submit.className = getButtonClass();
 		submit.style.flex = 1
 		submit.textContent = 'OK'
+		submit.type = 'submit';
 		actions.appendChild(submit);
 
 		const cancel = document.createElement('button');
+		cancel.className = getButtonClass();
 		cancel.style.flex = 1
 		cancel.textContent = 'Cancel'
 		cancel.addEventListener('click', () => canceled = true)
@@ -124,7 +159,7 @@ async function dialog(type, message, prep) {
 		window.addEventListener('keydown', handleDialogEscape)
 		setTimeout(() => {
 			pre();
-			prep?.(form)
+			afterCreated?.(form)
 			post();
 		}, 250);
 	});
@@ -566,11 +601,15 @@ r2 = (async () => {
 	 * Menu for importing or exporting
 	 */
 	const menu = async () => {
-		const choice = await dialog('prompt', '(I)mport, E(x)port, (E)dit')
+		const choice = await dialog('choose', 'Twitch Chapters Menu', () => ({
+			Import: 'i',
+			Export: 'x',
+			Edit: 'e'
+		}))
 		if (!choice) return;
-		if (choice.toLowerCase() === 'i') return importMinimal()
-		else if (choice.toLowerCase() === 'x') return exportMarkdown();
-		else if (choice.toLowerCase() === 'e') return editAllChapters();
+		if (choice === 'i') return importMinimal()
+		else if (choice === 'x') return exportMarkdown();
+		else if (choice === 'e') return editAllChapters();
 	}
 
 	/**
