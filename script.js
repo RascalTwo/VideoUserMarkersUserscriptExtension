@@ -174,7 +174,7 @@ function* parseMinimalChapters(text) {
  */
 function* chaptersToMinimal(chapters) {
 	chapters.sort((a, b) => a.seconds - b.seconds);
-	const places = secondsToDHMS(chapters[chapters.length - 1].seconds).split(':').length
+	const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
 	for (const chapter of chapters) {
 		const dhms = secondsToDHMS(chapter.seconds, places)
 		yield [dhms, chapter.name].join('\t');
@@ -204,7 +204,7 @@ function DHMStoSeconds(parts) {
  * @param {number} seconds
  * @returns {string}
  */
-function secondsToDHMS(seconds, minimalPlaces=1) {
+function secondsToDHMS(seconds, minimalPlaces = 1) {
 	// TODO - fix this rushed math
 	const days = parseInt(seconds / 86400)
 	const hours = parseInt((seconds - (days * 86400)) / 3600)
