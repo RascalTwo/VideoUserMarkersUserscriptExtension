@@ -490,11 +490,11 @@ r2 = (async () => {
 		let name = await dialog('prompt', 'Name');
 		if (!name) return;
 
-		if (['t+', 't-'].some(cmd => name.toLowerCase().startsWith(cmd))){
+		if (['t+', 't-'].some(cmd => name.toLowerCase().startsWith(cmd))) {
 			const direction = name[1] === '+' ? 1 : -1;
 			const offset = parseInt(name.substring(2))
 			if (!isNaN(offset)) seconds += offset * direction;
-			name = name.substring(2).trim();
+			name = name.substring(2 + offset.toString().length).trim();
 		}
 
 		chapters.push({ seconds, name });
