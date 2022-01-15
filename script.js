@@ -298,10 +298,12 @@ async function trackDelay(promise) {
 
 
 // Run cleanup if previously loaded, development only
-window.r2?.then(ret => ret.cleanup());
+window?.r2?.then(ret => ret.cleanup());
 r2 = (async () => {
 	// Get last segment of URL, which is the video ID
 	const chapters = JSON.parse(localStorage.getItem('r2_chapters_' + await ids.getVideoID()) ?? '[]');
+
+	if (!isVOD() && !isLive()) return { chapters: [], cleanup: () => undefined };
 
 	await delay(5000);
 
