@@ -484,9 +484,16 @@ r2 = (async () => {
 	 * Add chapter to current time
 	 */
 	const addChapterHere = async () => {
-		const seconds = await getCurrentTimeLive();
-		const name = await dialog('prompt', 'Name');
+		let seconds = await getCurrentTimeLive();
+		let name = await dialog('prompt', 'Name');
 		if (!name) return;
+
+		if (['t+', 't-'].some(cmd => name.toLowerCase().startsWith(cmd))){
+			const direction = name[1] === '+' ? 1 : -1;
+			const offset = parseInt(name.substring(2))
+			if (!isNaN(offset)) seconds += offset * direction;
+			name = name.substring(2).trim();
+		}
 
 		chapters.push({ seconds, name });
 		if (isLive()) navigator.clipboard.writeText(`https://twitch.tv/videos/${await ids.getVideoID()}?t=${generateTwitchTimestamp(seconds)}`);
