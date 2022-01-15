@@ -454,12 +454,12 @@ r2 = (async () => {
 		handleChapterUpdate();
 	}
 
-	const { removeChaptersList, renderChaptersList, setChaptersList } = (() => {
+	const { removeChapterList, renderChapterList, setChapterList } = (() => {
 		let rendering = false;
 		let last = { x: 0, y: 0 };
 
-		function renderChaptersList() {
-			removeChaptersList();
+		function renderChapterList() {
+			removeChapterList();
 			if (!rendering) return;
 
 			const list = document.createElement('ul')
@@ -514,7 +514,7 @@ r2 = (async () => {
 			closeButton.className = getButtonClass();
 			closeButton.style.float = 'right';
 			closeButton.textContent = 'Close';
-			closeButton.addEventListener('click', () => setChaptersList(false));
+			closeButton.addEventListener('click', () => setChapterList(false));
 
 			header.appendChild(closeButton);
 
@@ -545,16 +545,16 @@ r2 = (async () => {
 			});
 		}
 
-		function removeChaptersList() {
+		function removeChapterList() {
 			document.querySelector('.r2_chapter_list')?.remove()
 		}
 
-		const setChaptersList = (render) => {
+		const setChapterList = (render) => {
 			rendering = render
-			renderChaptersList();
+			renderChapterList();
 		}
 
-		return { removeChaptersList, renderChaptersList, setChaptersList }
+		return { removeChapterList, renderChapterList, setChapterList }
 	})();
 
 	async function editChapter(chapter) {
@@ -574,7 +574,7 @@ r2 = (async () => {
 	}
 
 	// Functions to call to remove script from site
-	let cleanupFuncs = [removeChaptersList]
+	let cleanupFuncs = [removeChapterList]
 	/**
 	 * Get the current time in seconds of the player
 	 *
@@ -583,7 +583,7 @@ r2 = (async () => {
 	let getCurrentTimeLive = async () => 0;
 	let chapterChangeHandlers = [
 		async () => localStorage.setItem('r2_chapters_' + await ids.getVideoID(), JSON.stringify(chapters)),
-		renderChaptersList
+		renderChapterList
 	]
 	if (isVOD()) {
 		/**
@@ -720,7 +720,7 @@ r2 = (async () => {
 		if (choice === 'i') return importMinimal()
 		else if (choice === 'x') return exportMarkdown();
 		else if (choice === 'e') return editAllChapters();
-		else if (choice === 'l') return setChaptersList(true);
+		else if (choice === 'l') return setChapterList(true);
 	}
 
 	/**
