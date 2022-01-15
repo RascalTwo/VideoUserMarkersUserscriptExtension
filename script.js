@@ -629,9 +629,14 @@ r2 = (async () => {
 		cleanupFuncs.push((() => {
 			const chapterName = document.createElement('span');
 			chapterName.style.paddingLeft = '1em';
+			chapterName.className = 'r2_current_chapter';
+			chapterName.dataset.controled = ''
+
 			document.querySelector('[data-a-target="player-volume-slider"]').parentNode.parentNode.parentNode.parentNode.appendChild(chapterName);
 
 			const chapterTitleInterval = setInterval(async () => {
+				if (chapterName.dataset.controled) return;
+
 				const now = await getCurrentTimeLive()
 				const name = chapters.filter(c => c.seconds <= now).slice(-1)[0]?.name
 
@@ -641,6 +646,37 @@ r2 = (async () => {
 			return () => {
 				clearInterval(chapterTitleInterval)
 				chapterName.remove();
+			}
+		})());
+
+		cleanupFuncs.push((() => {
+			const xToSeconds = x => {
+				const rect = bar.getBoundingClientRect();
+				const percentage = x / rect.width
+				const duration = Number(document.querySelector('[data-a-target="player-seekbar-duration"]').dataset.aValue)
+				const seconds = duration * percentage;
+				return seconds;
+			}
+			const handleMouseOver = e => {
+				if (e.target === bar) return;
+				const chapterName = document.querySelector('.r2_current_chapter')
+				chapterName.dataset.controled = 'true'
+
+				const seconds = xToSeconds(e.layerX);
+				const name = chapters.filter(c => c.seconds <= seconds).slice(-1)[0]?.name
+				if (name && chapterName.textContent !== name) chapterName.textContent = name;
+			}
+
+			const handleMouseLeave = () => {
+				document.querySelector('.r2_current_chapter').dataset.controled = ''
+			}
+
+			const bar = document.querySelector('.seekbar-bar').parentNode;
+			bar.addEventListener('mouseover', handleMouseOver);
+			bar.addEventListener('mouseleave', handleMouseLeave)
+			return () => {
+				bar.removeEventListener('mouseover', handleMouseOver);
+				bar.removeEventListener('mouseleave', handleMouseLeave);
 			}
 		})());
 		/**
