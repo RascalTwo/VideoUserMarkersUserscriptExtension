@@ -489,6 +489,7 @@ r2 = (async () => {
 		if (!name) return;
 
 		chapters.push({ seconds, name });
+		if (isLive()) navigator.clipboard.writeText(`https://twitch.tv/videos/${await ids.getVideoID()}?t=${generateTwitchTimestamp(seconds)}`);
 		return handleChapterUpdate();
 	}
 
