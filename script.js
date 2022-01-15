@@ -389,40 +389,6 @@ r2 = (async () => {
 
 	await delay(5000);
 
-	async function editChapter(chapter) {
-		const minimal = await dialog('prompt', 'Edit Chapter:', () => ['input', Array.from(chaptersToMinimal([chapter]))[0]]);
-		if (minimal === null) return;
-		const edited = Array.from(parseMinimalChapters(minimal))[0]
-		if (!edited) {
-			const index = chapters.findIndex(c => c.seconds === chapter.seconds)
-			chapters.splice(index, 1);
-		}
-		else {
-			Object.assign(chapter, edited)
-		}
-		return handleChapterUpdate();
-	}
-
-	async function editAllChapters() {
-		const minimal = await dialog('prompt', 'Edit Chapters', () => ['textarea', Array.from(chaptersToMinimal(chapters)).join('\n')]);
-		if (minimal === null) return;
-		chapters.splice(0, chapters.length, ...Array.from(parseMinimalChapters(minimal)));
-		return handleChapterUpdate();
-	}
-
-	// Functions to call to remove script from site
-	let cleanupFuncs = []
-	/**
-	 * Get the current time in seconds of the player
-	 *
-	 * @returns {number}
-	 */
-	let getCurrentTimeLive = async () => 0;
-	let chapterChangeHandlers = [
-		async () => localStorage.setItem('r2_chapters_' + await ids.getVideoID(), JSON.stringify(chapters))
-	]
-	if (isVOD()) {
-
 	/**
 	 * Get X and Y of the seconds provided
 	 *
@@ -506,6 +472,11 @@ r2 = (async () => {
 			list.style.color = 'white'
 			list.style.display = 'flex'
 			list.style.flexDirection = 'column'
+			list.style.maxHeight = '75vh'
+			list.style.maxWidth = '50vw'
+			list.style.overflow = 'scroll';
+			list.style.resize = 'both';
+
 			list.style.top = last.y + 'px'
 			list.style.left = last.x + 'px'
 
@@ -540,11 +511,12 @@ r2 = (async () => {
 			list.appendChild(header);
 
 			const closeButton = document.createElement('button')
+			closeButton.className = getButtonClass();
+			closeButton.style.float = 'right';
 			closeButton.textContent = 'Close';
 			closeButton.addEventListener('click', () => setChaptersList(false));
 
-			list.appendChild(closeButton);
-			list.appendChild(closeButton);
+			header.appendChild(closeButton);
 
 			for (const chapter of chapters) {
 				const li = document.createElement('li')
@@ -553,6 +525,7 @@ r2 = (async () => {
 
 				const deleteBtn = document.createElement('button')
 				deleteBtn.className = getButtonClass();
+				deleteBtn.style.float = 'right';
 				deleteBtn.textContent = 'Delete'
 				deleteBtn.addEventListener('click', deleteChapter.bind(null, chapter))
 				li.appendChild(deleteBtn);
@@ -561,7 +534,8 @@ r2 = (async () => {
 				li.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
 				list.appendChild(li);
 			}
-			list.appendChild(closeButton);
+
+			list.appendChild(closeButton.cloneNode(true));
 
 			document.body.appendChild(list);
 
