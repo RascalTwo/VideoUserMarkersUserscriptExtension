@@ -96,6 +96,7 @@ async function dialog(type, message, sideEffect) {
 				const overwriteAlternateHandlers = e => {
 					e.stopImmediatePropagation();
 					e.stopPropagation();
+					if (e.key === 'Enter' && e.ctrlKey) handleSubmit();
 				}
 				input.addEventListener('keydown', overwriteAlternateHandlers);
 				input.addEventListener('keypress', overwriteAlternateHandlers);
