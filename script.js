@@ -423,68 +423,200 @@ r2 = (async () => {
 	]
 	if (isVOD()) {
 
-		/**
-		 * Get X and Y of the seconds provided
-		 *
-		 * @param {number} seconds
-		 * @returns {{ x: number, y: number, minX: number, maxX: number }}
-		 */
-		function getTimeXY(seconds) {
-			const bar = document.querySelector('[data-a-target="player-seekbar"]');
+	/**
+	 * Get X and Y of the seconds provided
+	 *
+	 * @param {number} seconds
+	 * @returns {{ x: number, y: number, minX: number, maxX: number }}
+	 */
+	function getTimeXY(seconds) {
+		const bar = document.querySelector('[data-a-target="player-seekbar"]');
 
-			const rect = bar.getBoundingClientRect();
-			const minX = rect.left;
-			const maxX = rect.right;
+		const rect = bar.getBoundingClientRect();
+		const minX = rect.left;
+		const maxX = rect.right;
 
-			const duration = Number(document.querySelector('[data-a-target="player-seekbar-duration"]').dataset.aValue);
-			const percentage = seconds / duration;
-			const x = ((maxX - minX) * percentage) + minX;
-			const y = (rect.bottom + rect.top) / 2
-			return { x, y, minX, maxX }
+		const duration = Number(document.querySelector('[data-a-target="player-seekbar-duration"]').dataset.aValue);
+		const percentage = seconds / duration;
+		const x = ((maxX - minX) * percentage) + minX;
+		const y = (rect.bottom + rect.top) / 2
+		return { x, y, minX, maxX }
+	}
+
+	/**
+	 * Set time to the seconds provided
+	 *
+	 * @param {number} seconds
+	 */
+	async function setTime(seconds) {
+		const bar = document.querySelector('[data-a-target="player-seekbar"]');
+
+		let { minX, x, maxX } = getTimeXY(seconds)
+		// Binary search elimination to find exact X to get to desired seconds
+		while (true) {
+			const event = new MouseEvent('click', { clientX: x });
+			// Directly hook into onClick of react element, bar.dispatchEvent(event) did NOT work
+			Object.entries(bar).find(([key]) => key.startsWith('__reactEventHandlers'))[1].onClick(event);
+			await delay(50);
+			const current = await getCurrentTimeLive();
+			if (current === seconds) break;
+			if (current > seconds) maxX = x;
+			if (current < seconds) minX = x;
+			x = (maxX + minX) / 2
+			// Escape hatches: if min becomes greater then max or the difference between the min and max is less then a 10th of a pixel
+			if (minX >= maxX || Math.abs(minX - maxX) <= 0.1) break;
 		}
+	}
 
-		/**
-		 * Set time to the seconds provided
-		 *
-		 * @param {number} seconds
-		 */
-		async function setTime(seconds) {
-			const bar = document.querySelector('[data-a-target="player-seekbar"]');
+	function seekToChapter(chapter, e) {
+		e?.preventDefault();
+		return setTime(chapter.seconds);
+	}
 
-			let { minX, x, maxX } = getTimeXY(seconds)
-			// Binary search elimination to find exact X to get to desired seconds
-			while (true) {
-				const event = new MouseEvent('click', { clientX: x });
-				// Directly hook into onClick of react element, bar.dispatchEvent(event) did NOT work
-				Object.entries(bar).find(([key]) => key.startsWith('__reactEventHandlers'))[1].onClick(event);
-				await delay(50);
-				const current = await getCurrentTimeLive();
-				if (current === seconds) break;
-				if (current > seconds) maxX = x;
-				if (current < seconds) minX = x;
-				x = (maxX + minX) / 2
-				// Escape hatches: if min becomes greater then max or the difference between the min and max is less then a 10th of a pixel
-				if (minX >= maxX || Math.abs(minX - maxX) <= 0.1) break;
+	function startEditingChapter(chapter, e) {
+		e?.preventDefault();
+		return editChapter(chapter);
+	}
+
+	function deleteChapter(chapter, e) {
+		e?.preventDefault();
+		e.stopImmediatePropagation();
+		e.stopPropagation();
+
+		const index = chapters.findIndex(c => c.seconds === chapter.seconds)
+		chapters.splice(index, 1);
+		handleChapterUpdate();
+	}
+
+	const { removeChaptersList, renderChaptersList, setChaptersList } = (() => {
+		let rendering = false;
+		let last = { x: 0, y: 0 };
+
+		function renderChaptersList() {
+			removeChaptersList();
+			if (!rendering) return;
+
+			const list = document.createElement('ul')
+			list.className = 'r2_chapter_list'
+			list.style.position = 'absolute'
+			list.style.zIndex = 9000;
+			list.style.backgroundColor = '#18181b'
+			list.style.padding = '1em';
+			list.style.borderRadius = '1em';
+			list.style.color = 'white'
+			list.style.display = 'flex'
+			list.style.flexDirection = 'column'
+			list.style.top = last.y + 'px'
+			list.style.left = last.x + 'px'
+
+			const header = document.createElement('li')
+			header.textContent = 'Chapters List'
+			header.backgroundColor = '#08080b'
+			header.style.userSelect = 'none';
+			header.style.padding = '0'
+			header.style.margin = '0'
+
+			let dragging = false;
+			header.addEventListener('mousedown', (e) => {
+				e.preventDefault()
+				dragging = true
+				last = { x: e.clientX, y: e.clientY }
+			})
+			const handleMouseUp = (e) => {
+				e.preventDefault()
+				dragging = false;
 			}
+			document.body.addEventListener('mouseup', handleMouseUp);
+
+			const handleMouseMove = (e) => {
+				if (!dragging) return;
+
+				e.preventDefault();
+				list.style.top = (list.offsetTop - (last.y - e.clientY)) + 'px'
+				list.style.left = (list.offsetLeft - (last.x - e.clientX)) + 'px'
+				last = { x: e.clientX, y: e.clientY }
+			}
+			document.body.addEventListener('mousemove', handleMouseMove);
+			list.appendChild(header);
+
+			const closeButton = document.createElement('button')
+			closeButton.textContent = 'Close';
+			closeButton.addEventListener('click', () => setChaptersList(false));
+
+			list.appendChild(closeButton);
+			list.appendChild(closeButton);
+
+			for (const chapter of chapters) {
+				const li = document.createElement('li')
+				li.textContent = `${secondsToDHMS(chapter.seconds)} ${chapter.name}`
+				li.style.cursor = 'pointer'
+
+				const deleteBtn = document.createElement('button')
+				deleteBtn.className = getButtonClass();
+				deleteBtn.textContent = 'Delete'
+				deleteBtn.addEventListener('click', deleteChapter.bind(null, chapter))
+				li.appendChild(deleteBtn);
+
+				if (isVOD()) li.addEventListener('click', seekToChapter.bind(null, chapter))
+				li.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
+				list.appendChild(li);
+			}
+			list.appendChild(closeButton);
+
+			document.body.appendChild(list);
+
+			cleanupFuncs.push(() => {
+				document.body.removeEventListener('mousemove', handleMouseMove);
+				document.body.removeEventListener('mouseup', handleMouseUp);
+			});
 		}
 
+		function removeChaptersList() {
+			document.querySelector('.r2_chapter_list')?.remove()
+		}
+
+		const setChaptersList = (render) => {
+			rendering = render
+			renderChaptersList();
+		}
+
+		return { removeChaptersList, renderChaptersList, setChaptersList }
+	})();
+
+	async function editChapter(chapter) {
+		const minimal = await dialog('prompt', 'Edit Chapter:', () => ['input', Array.from(chaptersToMinimal([chapter]))[0]]);
+		if (minimal === null) return;
+		const edited = Array.from(parseMinimalChapters(minimal))[0]
+		if (!edited) return deleteChapter(chapter);
+		else Object.assign(chapter, edited);
+		return handleChapterUpdate();
+	}
+
+	async function editAllChapters() {
+		const minimal = await dialog('prompt', 'Edit Chapters', () => ['textarea', Array.from(chaptersToMinimal(chapters)).join('\n')]);
+		if (minimal === null) return;
+		chapters.splice(0, chapters.length, ...Array.from(parseMinimalChapters(minimal)));
+		return handleChapterUpdate();
+	}
+
+	// Functions to call to remove script from site
+	let cleanupFuncs = [removeChaptersList]
+	/**
+	 * Get the current time in seconds of the player
+	 *
+	 * @returns {number}
+	 */
+	let getCurrentTimeLive = async () => 0;
+	let chapterChangeHandlers = [
+		async () => localStorage.setItem('r2_chapters_' + await ids.getVideoID(), JSON.stringify(chapters)),
+		renderChaptersList
+	]
+	if (isVOD()) {
 		/**
 		 * Remove chapter DOM elements, done before rendering and cleanup
 		 */
 		const removeDOMChapters = () => {
 			document.querySelectorAll('.r2_chapter').forEach(e => e.remove());
-		}
-
-		/**
-		 * Handle when marker is directly clicked
-		 *
-		 * @param {{ name: string, seconds: number}} chapter
-		 * @param {MouseEvent} e
-		 */
-		const handleMarkerClick = (chapter, e) => {
-			e.preventDefault()
-			if (e.button === 0) return setTime(chapter.seconds);
-			return editChapter(chapter);
 		}
 
 		chapterChangeHandlers.push(function renderChapters() {
@@ -500,8 +632,8 @@ r2 = (async () => {
 				node.style.left = (x - 2.5) + 'px';
 				node.style.zIndex = 9000;
 				node.textContent = i
-				node.addEventListener('click', handleMarkerClick.bind(null, chapter))
-				node.addEventListener('contextmenu', handleMarkerClick.bind(null, chapter))
+				node.addEventListener('click', seekToChapter.bind(null, chapter))
+				node.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
 				document.body.appendChild(node);
 			}
 		})
@@ -607,12 +739,14 @@ r2 = (async () => {
 		const choice = await dialog('choose', 'Twitch Chapters Menu', () => ({
 			Import: 'i',
 			Export: 'x',
-			Edit: 'e'
+			Edit: 'e',
+			List: 'l'
 		}))
 		if (!choice) return;
 		if (choice === 'i') return importMinimal()
 		else if (choice === 'x') return exportMarkdown();
 		else if (choice === 'e') return editAllChapters();
+		else if (choice === 'l') return setChaptersList(true);
 	}
 
 	/**
