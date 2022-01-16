@@ -580,6 +580,15 @@ r2 = (async function main() {
 				title.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
 				li.appendChild(title);
 
+				const share = document.createElement('button')
+				share.className = getButtonClass();
+				share.style.float = 'right';
+				share.textContent = 'Share'
+				share.addEventListener('click', async function (chapter) {
+					navigator.clipboard.writeText(`https://twitch.tv/videos/${await ids.getVideoID()}?t=${generateTwitchTimestamp(chapter.seconds)}`);
+				}.bind(null, chapter))
+				li.appendChild(share);
+
 				const deleteBtn = document.createElement('button')
 				deleteBtn.className = getButtonClass();
 				deleteBtn.style.float = 'right';
