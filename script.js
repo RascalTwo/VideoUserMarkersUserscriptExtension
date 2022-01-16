@@ -509,131 +509,155 @@ r2 = (async function main() {
 		let last = { x: 0, y: 0 };
 
 		function renderChapterList() {
-			removeChapterList();
-			if (!rendering) return;
+			if (!rendering) return removeChapterList();
 
-			const list = document.createElement('ul')
-			list.className = 'r2_chapter_list'
-			list.style.position = 'absolute'
-			list.style.zIndex = 9001;
-			list.style.backgroundColor = '#18181b'
-			list.style.padding = '1em';
-			list.style.borderRadius = '1em';
-			list.style.color = 'white'
-			list.style.display = 'flex'
-			list.style.flexDirection = 'column'
-			list.style.maxHeight = '75vh'
-			list.style.maxWidth = '50vw'
-			list.style.overflow = 'scroll';
-			list.style.resize = 'both';
+			const existingList = document.querySelector('.r2_chapter_list');
+			list = existingList || document.createElement('ul');
+			if (!existingList) {
+				list.className = 'r2_chapter_list'
+				list.style.position = 'absolute'
+				list.style.zIndex = 9001;
+				list.style.backgroundColor = '#18181b'
+				list.style.padding = '1em';
+				list.style.borderRadius = '1em';
+				list.style.color = 'white'
+				list.style.display = 'flex'
+				list.style.flexDirection = 'column'
+				list.style.maxHeight = '75vh'
+				list.style.maxWidth = '50vw'
+				list.style.overflow = 'scroll';
+				list.style.resize = 'both';
 
-			list.style.top = last.y + 'px'
-			list.style.left = last.x + 'px'
+				list.style.top = last.y + 'px'
+				list.style.left = last.x + 'px'
 
-			const header = document.createElement('h4');
-			header.textContent = 'Chapter List'
-			header.backgroundColor = '#08080b'
-			header.style.userSelect = 'none';
-			header.style.padding = '0'
-			header.style.margin = '0'
+				const header = document.createElement('h4');
+				header.textContent = 'Chapter List'
+				header.backgroundColor = '#08080b'
+				header.style.userSelect = 'none';
+				header.style.padding = '0'
+				header.style.margin = '0'
 
-			let dragging = false;
-			header.addEventListener('mousedown', (e) => {
-				e.preventDefault()
-				dragging = true
-				last = { x: e.clientX, y: e.clientY }
-			})
-			const handleMouseUp = (e) => {
-				e.preventDefault()
-				dragging = false;
+				let dragging = false;
+				header.addEventListener('mousedown', (e) => {
+					e.preventDefault()
+					dragging = true
+					last = { x: e.clientX, y: e.clientY }
+				})
+				const handleMouseUp = (e) => {
+					e.preventDefault()
+					dragging = false;
+				}
+				document.body.addEventListener('mouseup', handleMouseUp);
+
+				const handleMouseMove = (e) => {
+					if (!dragging) return;
+
+					e.preventDefault();
+					list.style.top = (list.offsetTop - (last.y - e.clientY)) + 'px'
+					list.style.left = (list.offsetLeft - (last.x - e.clientX)) + 'px'
+					last = { x: e.clientX, y: e.clientY }
+				}
+				document.body.addEventListener('mousemove', handleMouseMove);
+				list.appendChild(header);
+
+				uninstallFuncs.push(() => {
+					document.body.removeEventListener('mousemove', handleMouseMove);
+					document.body.removeEventListener('mouseup', handleMouseUp);
+				});
+
+				const closeButton = document.createElement('button')
+				closeButton.className = getButtonClass();
+				closeButton.style.float = 'right';
+				closeButton.textContent = 'Close';
+				closeButton.addEventListener('click', () => setChapterList(false));
+
+				header.appendChild(closeButton);
 			}
-			document.body.addEventListener('mouseup', handleMouseUp);
-
-			const handleMouseMove = (e) => {
-				if (!dragging) return;
-
-				e.preventDefault();
-				list.style.top = (list.offsetTop - (last.y - e.clientY)) + 'px'
-				list.style.left = (list.offsetLeft - (last.x - e.clientX)) + 'px'
-				last = { x: e.clientX, y: e.clientY }
-			}
-			document.body.addEventListener('mousemove', handleMouseMove);
-			list.appendChild(header);
-
-			const closeButton = document.createElement('button')
-			closeButton.className = getButtonClass();
-			closeButton.style.float = 'right';
-			closeButton.textContent = 'Close';
-			closeButton.addEventListener('click', () => setChapterList(false));
-
-			header.appendChild(closeButton);
 
 
 			chapters.sort((a, b) => a.seconds - b.seconds);
 			const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
 
-			for (const chapter of chapters) {
-				const li = document.createElement('li')
+			for (const [i, chapter] of chapters.entries()) {
+				const existingLi = list.querySelectorAll('li')[i]
+				const li = existingLi || document.createElement('li')
 				li.style.display = 'flex';
 				li.style.alignItems = 'center';
 
-				const time = document.createElement('span');
-				time.style.fontFamily = 'monospace'
-				const decrease = document.createElement('button');
-				decrease.className = getButtonClass();
-				decrease.textContent = '-';
-				decrease.title = 'Subtract 1 second';
-				decrease.addEventListener('click', adjustChapterSeconds.bind(null, chapter, -1));
-				time.appendChild(decrease);
+				const timeContent = secondsToDHMS(chapter.seconds, places);
 
-				time.appendChild(document.createTextNode(secondsToDHMS(chapter.seconds, places)));
+				const time = li.querySelector('span') || document.createElement('span');
+				if (!existingLi) {
+					time.style.fontFamily = 'monospace'
+					const decrease = document.createElement('button');
+					decrease.className = getButtonClass();
+					decrease.textContent = '-';
+					decrease.title = 'Subtract 1 second';
+					decrease.addEventListener('click', adjustChapterSeconds.bind(null, chapter, -1));
+					time.appendChild(decrease);
 
-				const increase = document.createElement('button');
-				increase.className = getButtonClass();
-				increase.textContent = '+';
-				increase.title = 'Add 1 second';
-				increase.addEventListener('click', adjustChapterSeconds.bind(null, chapter, 1));
-				time.appendChild(increase);
-				li.appendChild(time);
+					time.appendChild(document.createTextNode(timeContent));
 
-				const title = document.createElement('span');
+					const increase = document.createElement('button');
+					increase.className = getButtonClass();
+					increase.textContent = '+';
+					increase.title = 'Add 1 second';
+					increase.addEventListener('click', adjustChapterSeconds.bind(null, chapter, 1));
+					time.appendChild(increase);
+					li.appendChild(time);
+				}
+				else {
+					time.childNodes[1].textContent = timeContent
+				}
+
+				const title = li.querySelector('span.r2_chapter_title') || document.createElement('span');
+				if (!existingLi) {
+					title.className = 'r2_chapter_title'
+					title.style.cursor = 'pointer';
+					title.style.flex = 1;
+					title.style.textAlign = 'center';
+					if (isVOD()) title.addEventListener('click', seekToChapter.bind(null, chapter))
+					title.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
+					li.appendChild(title);
+				}
 				title.textContent = chapter.name;
-				title.style.cursor = 'pointer';
-				title.style.flex = 1;
-				title.style.textAlign = 'center';
-				if (isVOD()) title.addEventListener('click', seekToChapter.bind(null, chapter))
-				title.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
-				li.appendChild(title);
 
-				const share = document.createElement('button')
-				share.className = getButtonClass();
-				share.style.float = 'right';
-				share.textContent = 'Share'
-				share.addEventListener('click', async function (chapter) {
-					navigator.clipboard.writeText(`https://twitch.tv/videos/${await ids.getVideoID()}?t=${generateTwitchTimestamp(chapter.seconds)}`);
-				}.bind(null, chapter))
-				li.appendChild(share);
+				const share = document.querySelector('button.r2_chapter_share') || document.createElement('button')
+				if (!existingLi) {
+					share.className = getButtonClass();
+					share.classList.add('r2_chapter_share');
+					share.style.float = 'right';
+					share.textContent = 'Share'
+					share.addEventListener('click', async function (chapter) {
+						navigator.clipboard.writeText(`https://twitch.tv/videos/${await ids.getVideoID()}?t=${generateTwitchTimestamp(chapter.seconds)}`);
+					}.bind(null, chapter))
+					li.appendChild(share);
+				}
 
-				const deleteBtn = document.createElement('button')
-				deleteBtn.className = getButtonClass();
-				deleteBtn.style.float = 'right';
-				deleteBtn.textContent = 'Delete'
-				deleteBtn.addEventListener('click', deleteChapter.bind(null, chapter))
-				li.appendChild(deleteBtn);
+				const deleteBtn = document.querySelector('button.r2_chapter_delete') || document.createElement('button')
+				if (!existingLi) {
+					deleteBtn.className = getButtonClass();
+					deleteBtn.classList.add('r2_chapter_delete');
+					deleteBtn.style.float = 'right';
+					deleteBtn.textContent = 'Delete'
+					deleteBtn.addEventListener('click', deleteChapter.bind(null, chapter))
+					li.appendChild(deleteBtn);
+				}
 
-				list.appendChild(li);
+				if (!existingLi) list.appendChild(li);
 			}
 
-			const bottomClose = closeButton.cloneNode(true);
-			bottomClose.addEventListener('click', () => setChapterList(false));
-			list.appendChild(bottomClose);
+			if (!existingList) {
+				const closeButton = document.createElement('button')
+				closeButton.className = getButtonClass();
+				closeButton.style.float = 'right';
+				closeButton.textContent = 'Close';
+				closeButton.addEventListener('click', () => setChapterList(false));
+				list.appendChild(closeButton);
 
-			document.body.appendChild(list);
-
-			uninstallFuncs.push(() => {
-				document.body.removeEventListener('mousemove', handleMouseMove);
-				document.body.removeEventListener('mouseup', handleMouseUp);
-			});
+				document.body.appendChild(list);
+			}
 		}
 
 		function removeChapterList() {
