@@ -381,14 +381,14 @@ async function trackDelay(promise) {
 }
 
 
-// Run cleanup if previously loaded, development only
-window?.r2?.then(ret => ret.cleanup());
+// Run uninstall if previously loaded, development only
+window?.r2?.then(ret => ret.uninstall());
 r2 = (async function main() {
 	console.log('R2 Twitch Chapters Setup Started');
 
 	if (!isVOD() && !isLive()) return {
 		chapters: [],
-		cleanup: (() => {
+		uninstall: (() => {
 			console.log('R2 Twitch Chapters Not Activating');
 			const url = window.location.href;
 			const interval = setInterval(() => {
@@ -596,7 +596,7 @@ r2 = (async function main() {
 
 			document.body.appendChild(list);
 
-			cleanupFuncs.push(() => {
+			uninstallFuncs.push(() => {
 				document.body.removeEventListener('mousemove', handleMouseMove);
 				document.body.removeEventListener('mouseup', handleMouseUp);
 			});
@@ -631,7 +631,7 @@ r2 = (async function main() {
 	}
 
 	// Functions to call to remove script from site
-	let cleanupFuncs = [removeChapterList]
+	let uninstallFuncs = [removeChapterList]
 	/**
 	 * Get the current time in seconds of the player
 	 *
@@ -644,7 +644,7 @@ r2 = (async function main() {
 	]
 
 	if (isVOD()) {
-		cleanupFuncs.push((() => {
+		uninstallFuncs.push((() => {
 			const chapterName = document.createElement('span');
 			chapterName.style.paddingLeft = '1em';
 			chapterName.className = 'r2_current_chapter';
@@ -667,7 +667,7 @@ r2 = (async function main() {
 			}
 		})());
 
-		cleanupFuncs.push((() => {
+		uninstallFuncs.push((() => {
 			const xToSeconds = x => {
 				const rect = bar.getBoundingClientRect();
 				const percentage = x / rect.width
@@ -698,7 +698,7 @@ r2 = (async function main() {
 			}
 		})());
 		/**
-		 * Remove chapter DOM elements, done before rendering and cleanup
+		 * Remove chapter DOM elements, done before rendering and uninstall
 		 */
 		const removeDOMChapters = () => {
 			document.querySelectorAll('.r2_chapter').forEach(e => e.remove());
@@ -726,7 +726,7 @@ r2 = (async function main() {
 
 		// Pull current time from DHMS display, it's always accurate in VODs
 		getCurrentTimeLive = async () => DHMStoSeconds(document.querySelector('[data-a-target="player-seekbar-current-time"]').textContent.split(':').map(Number))
-		cleanupFuncs.push(removeDOMChapters)
+		uninstallFuncs.push(removeDOMChapters)
 	}
 	else if (isLive()) {
 		if (isAlternatePlayer()) {
@@ -857,15 +857,15 @@ r2 = (async function main() {
 	};
 	window.addEventListener('resize', resizeHandler);
 
-	function cleanup() {
+	function uninstall() {
 		window.removeEventListener('keydown', keydownHandler);
 		window.removeEventListener('resize', resizeHandler);
-		cleanupFuncs.forEach(func => func())
+		uninstallFuncs.forEach(func => func());
 	}
 
 	if (chapters.length) await handleChapterUpdate();
 
 	console.log('R2 Twitch Chapters Setup Ended');
-	return { chapters, cleanup };
+	return { chapters, uninstall };
 })();
 console.log('R2 Twitch Chapters Script Ended');
