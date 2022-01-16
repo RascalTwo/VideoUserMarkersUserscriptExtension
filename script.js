@@ -4,7 +4,7 @@
 // @grant    none
 // @match    https://www.twitch.tv/*
 // ==/UserScript==
-console.log('R2 Twitch Chapters Script Started')
+console.log('[R2 Twitch Chapters] Script Started')
 
 /**
  * Do nothing
@@ -385,12 +385,12 @@ async function trackDelay(promise) {
 // Run uninstall if previously loaded, development only
 window?.r2?.then(ret => ret.uninstall());
 r2 = (async function main() {
-	console.log('R2 Twitch Chapters Setup Started');
+	console.log('[R2 Twitch Chapters] Setup Started');
 
 	if (!isVOD() && !isLive()) return {
 		chapters: [],
 		uninstall: (() => {
-			console.log('R2 Twitch Chapters Not Activating');
+			console.log('[R2 Twitch Chapters] Not Activating');
 			const url = window.location.href;
 			const interval = setInterval(() => {
 				if (window.location.href === url) return;
@@ -882,7 +882,7 @@ r2 = (async function main() {
 
 	if (chapters.length) await handleChapterUpdate();
 
-	console.log('R2 Twitch Chapters Setup Ended');
+	console.log('[R2 Twitch Chapters] Setup Ended');
 	return { chapters, uninstall };
 })();
-console.log('R2 Twitch Chapters Script Ended');
+console.log('[R2 Twitch Chapters] Script Ended');
