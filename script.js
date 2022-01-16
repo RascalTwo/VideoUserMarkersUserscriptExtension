@@ -4,7 +4,7 @@
 // @grant    none
 // @match    https://www.twitch.tv/*
 // ==/UserScript==
-console.log('R2 Twitch Chapters Started')
+console.log('R2 Twitch Chapters Script Started')
 
 /**
  * Do nothing
@@ -206,7 +206,9 @@ function isVOD() {
  * @returns {boolean}
  */
 function isLive() {
-	return isAlternatePlayer() || window.location.pathname.split('/').slice(1).length === 1
+	if (isAlternatePlayer()) return true;
+	const parts = window.location.pathname.split('/').slice(1)
+	return parts.length === 1 && parts[0]
 }
 
 /**
@@ -381,11 +383,25 @@ async function trackDelay(promise) {
 
 // Run cleanup if previously loaded, development only
 window?.r2?.then(ret => ret.cleanup());
-r2 = (async () => {
+r2 = (async function main() {
+	console.log('R2 Twitch Chapters Setup Started');
+
+	if (!isVOD() && !isLive()) return {
+		chapters: [],
+		cleanup: (() => {
+			console.log('R2 Twitch Chapters Not Activating');
+			const url = window.location.href;
+			const interval = setInterval(() => {
+				if (window.location.href === url) return;
+				clearInterval(interval);
+				main();
+			}, 1000);
+			return () => clearInterval(interval);
+		})()
+	};
+
 	// Get last segment of URL, which is the video ID
 	const chapters = JSON.parse(localStorage.getItem('r2_chapters_' + await ids.getVideoID()) ?? '[]');
-
-	if (!isVOD() && !isLive()) return { chapters: [], cleanup: () => undefined };
 
 	await delay(5000);
 
@@ -574,7 +590,9 @@ r2 = (async () => {
 				list.appendChild(li);
 			}
 
-			list.appendChild(closeButton.cloneNode(true));
+			const bottomClose = closeButton.cloneNode(true);
+			bottomClose.addEventListener('click', () => setChapterList(false));
+			list.appendChild(bottomClose);
 
 			document.body.appendChild(list);
 
@@ -847,6 +865,7 @@ r2 = (async () => {
 
 	if (chapters.length) await handleChapterUpdate();
 
-	console.log('R2 Twitch Chapters Finished')
+	console.log('R2 Twitch Chapters Setup Ended');
 	return { chapters, cleanup };
 })();
+console.log('R2 Twitch Chapters Script Ended');
