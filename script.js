@@ -387,19 +387,36 @@ window?.r2?.then(ret => ret.uninstall());
 r2 = (async function main() {
 	console.log('[R2 Twitch Chapters] Setup Started');
 
-	if (!isVOD() && !isLive()) return {
-		chapters: [],
-		uninstall: (() => {
-			console.log('[R2 Twitch Chapters] Not Activating');
-			const url = window.location.href;
-			const interval = setInterval(() => {
-				if (window.location.href === url) return;
-				clearInterval(interval);
-				main();
-			}, 1000);
-			return () => clearInterval(interval);
-		})()
-	};
+	while (document.readyState !== 'complete') {
+		await delay(1000);
+		console.log('[R2 Twitch Chapters] Waiting for complete document...');
+	}
+
+	const uninstallFuncs = [];
+	async function uninstall() {
+		for (const func of uninstallFuncs) await func()
+	}
+
+	function reinstallOnChange(reinstall = () => false) {
+		const url = window.location.href;
+		const interval = setInterval(() => {
+			if (!reinstall() && window.location.href === url) return;
+			clearInterval(interval);
+			uninstall().then(main);
+		}, 1000);
+		return () => clearInterval(interval);
+	}
+
+	if (!isVOD() && !isLive()) {
+		console.log(`[R2 Twitch Chapters] Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
+		uninstallFuncs.push(reinstallOnChange(() => {
+			console.log('Chapters:', isVOD(), isLive());
+			return isVOD() || isLive();
+		}));
+		return { chapters: [], uninstall }
+	}
+
+	uninstallFuncs.push(reinstallOnChange());
 
 	// Get last segment of URL, which is the video ID
 	const chapters = JSON.parse(localStorage.getItem('r2_chapters_' + await ids.getVideoID()) ?? '[]');
@@ -648,7 +665,7 @@ r2 = (async function main() {
 	}
 
 	// Functions to call to remove script from site
-	let uninstallFuncs = [removeChapterList]
+	uninstallFuncs.push(removeChapterList);
 	/**
 	 * Get the current time in seconds of the player
 	 *
@@ -863,6 +880,7 @@ r2 = (async function main() {
 		if (e.key === 'b') addChapterHere()
 	};
 	window.addEventListener('keydown', keydownHandler);
+	uninstallFuncs.push(() => window.removeEventListener('keydown', keydownHandler));
 
 	let renderTimeout = 0;
 	/**
@@ -873,12 +891,8 @@ r2 = (async function main() {
 		renderTimeout = setTimeout(handleChapterUpdate, 1000);
 	};
 	window.addEventListener('resize', resizeHandler);
+	uninstallFuncs.push(() => window.removeEventListener('resize', resizeHandler));
 
-	function uninstall() {
-		window.removeEventListener('keydown', keydownHandler);
-		window.removeEventListener('resize', resizeHandler);
-		uninstallFuncs.forEach(func => func());
-	}
 
 	if (chapters.length) await handleChapterUpdate();
 
