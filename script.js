@@ -404,7 +404,14 @@ r2 = (async function main() {
 	// Get last segment of URL, which is the video ID
 	const chapters = JSON.parse(localStorage.getItem('r2_chapters_' + await ids.getVideoID()) ?? '[]');
 
-	await delay(5000);
+	while (true) {
+		await delay(1000);
+		if (!document.querySelector('[data-a-target="player-volume-slider"]')) continue;
+		if (isLive()) break;
+		if (isVOD() && document.querySelector('.seekbar-bar')) break;
+
+		console.log('[R2 Twitch Chapters] Waiting for player...');
+	}
 
 	/**
 	 * Get X and Y of the seconds provided
