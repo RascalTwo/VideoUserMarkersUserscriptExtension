@@ -208,7 +208,8 @@ function isVOD() {
 function isLive() {
 	if (isAlternatePlayer()) return true;
 	const parts = window.location.pathname.split('/').slice(1)
-	return parts.length === 1 && parts[0]
+	if (!parts.length === 1 && !!parts[0]) return false;
+	return !!document.querySelector('.user-avatar-card__live');
 }
 
 /**
