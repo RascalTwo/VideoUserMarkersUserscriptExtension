@@ -487,11 +487,11 @@ r2 = (async function main() {
 		return setTime(chapter.seconds);
 	}
 
-	function startEditingChapter(chapter, e) {
+	function startEditingChapter(chapter, seconds, name, e) {
 		e?.preventDefault();
 		e?.stopImmediatePropagation()
 		e?.stopPropagation()
-		return editChapter(chapter);
+		return editChapter(chapter, seconds, name);
 	}
 
 	function deleteChapter(chapter, e) {
@@ -506,7 +506,7 @@ r2 = (async function main() {
 
 	function adjustChapterSeconds(chapter, change) {
 		chapter.seconds += change;
-		return handleChapterUpdate();
+		return handleChapterUpdate().then(() => chapter);
 	}
 
 	const { removeChapterList, renderChapterList, setChapterList } = (() => {
@@ -606,14 +606,29 @@ r2 = (async function main() {
 				const time = li.querySelector('span') || document.createElement('span');
 				if (!existingLi) {
 					time.style.fontFamily = 'monospace'
+					time.addEventListener('wheel', function (chapter, e) {
+						e.preventDefault();
+						e.stopImmediatePropagation();
+						e.stopPropagation();
+						return adjustChapterSeconds(chapter, Math.min(Math.max(e.deltaY, -1), 1))
+							.then(chapter => isVOD() && setTime(chapter.seconds));
+					}.bind(null, chapter))
+
 					const decrease = document.createElement('button');
 					decrease.className = getButtonClass();
 					decrease.textContent = '-';
 					decrease.title = 'Subtract 1 second';
-					decrease.addEventListener('click', adjustChapterSeconds.bind(null, chapter, -1));
+					decrease.addEventListener('click', function (chapter) {
+						return adjustChapterSeconds(chapter, -1).then(chapter => isVOD() && setTime(chapter.seconds));
+					}.bind(null, chapter));
 					time.appendChild(decrease);
 
-					time.appendChild(document.createTextNode(timeContent));
+					const timeText = document.createElement('span');
+					timeText.textContent = timeContent;
+					timeText.style.cursor = 'pointer';
+					if (isVOD()) timeText.addEventListener('click', seekToChapter.bind(null, chapter))
+					timeText.addEventListener('contextmenu', startEditingChapter.bind(null, chapter, true, false))
+					time.appendChild(timeText);
 
 					const increase = document.createElement('button');
 					increase.className = getButtonClass();
@@ -634,7 +649,7 @@ r2 = (async function main() {
 					title.style.flex = 1;
 					title.style.textAlign = 'center';
 					if (isVOD()) title.addEventListener('click', seekToChapter.bind(null, chapter))
-					title.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
+					title.addEventListener('contextmenu', startEditingChapter.bind(null, chapter, false, true))
 					li.appendChild(title);
 				}
 				title.textContent = chapter.name;
@@ -692,12 +707,22 @@ r2 = (async function main() {
 		return { removeChapterList, renderChapterList, setChapterList }
 	})();
 
-	async function editChapter(chapter) {
-		const minimal = await dialog('prompt', 'Edit Chapter:', () => ['input', Array.from(chaptersToMinimal([chapter]))[0]]);
+	async function editChapter(chapter, seconds, name) {
+		let minimal = await dialog('prompt', 'Edit Chapter:', () => {
+			let content = Array.from(chaptersToMinimal([chapter]))[0]
+			if (!seconds || !name) content = content.split('\t')[Number(name)].trim();
+			return ['input', content];
+		});
 		if (minimal === null) return;
+		if (!seconds) minimal = '0 ' + minimal
+		else if (!name) minimal = minimal + ' 0'
 		const edited = Array.from(parseMinimalChapters(minimal))[0]
 		if (!edited) return deleteChapter(chapter);
-		else Object.assign(chapter, edited);
+		else {
+			if (seconds && name) Object.assign(chapter, edited);
+			else if (seconds) chapter.seconds = edited.seconds;
+			else if (name) chapter.name = edited.name;
+		}
 		return handleChapterUpdate();
 	}
 
@@ -813,7 +838,7 @@ r2 = (async function main() {
 				node.style.left = getTimeXY(chapter.seconds).x + 'px';
 
 				node.addEventListener('click', seekToChapter.bind(null, chapter))
-				node.addEventListener('contextmenu', startEditingChapter.bind(null, chapter))
+				node.addEventListener('contextmenu', startEditingChapter.bind(null, chapter, true, true))
 				bar.appendChild(node);
 			}
 		})
