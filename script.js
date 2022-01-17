@@ -45,6 +45,8 @@ function delay(ms) {
 	return new Promise(r => setTimeout(r, ms))
 };
 
+let openDialogs = 0;
+
 /**
  * Show customizable dialog
  *
@@ -54,12 +56,13 @@ function delay(ms) {
  */
 async function dialog(type, message, sideEffect) {
 	return new Promise(resolve => {
+		openDialogs++;
 
 		let canceled = false;
 
 		const form = document.createElement('form');
 		form.style.position = 'absolute';
-		form.style.zIndex = 9000;
+		form.style.zIndex = 9000 + openDialogs;
 		form.style.top = '50%';
 		form.style.left = '50%';
 		form.style.transform = 'translate(-50%, -50%)';
@@ -74,6 +77,7 @@ async function dialog(type, message, sideEffect) {
 			e?.preventDefault();
 			const response = canceled ? null : generateResponse();
 			form.remove();
+			openDialogs--;
 			window.removeEventListener('keydown', handleDialogEscape);
 			return resolve(response);
 		}
@@ -158,8 +162,10 @@ async function dialog(type, message, sideEffect) {
 
 		document.body.appendChild(form);
 		const handleDialogEscape = e => {
-			if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+			if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName) || form.style.zIndex != 9000 + openDialogs) return;
 			canceled = true;
+			e.stopImmediatePropagation();
+			e.stopPropagation();
 			return handleSubmit();
 		}
 		window.addEventListener('keydown', handleDialogEscape)
@@ -516,7 +522,7 @@ r2 = (async function main() {
 			if (!existingList) {
 				list.className = 'r2_chapter_list'
 				list.style.position = 'absolute'
-				list.style.zIndex = 9001;
+				list.style.zIndex = 9000 + openDialogs;
 				list.style.backgroundColor = '#18181b'
 				list.style.padding = '1em';
 				list.style.borderRadius = '1em';
@@ -573,6 +579,17 @@ r2 = (async function main() {
 				closeButton.addEventListener('click', () => setChapterList(false));
 
 				header.appendChild(closeButton);
+
+
+				const handleChapterListEscape = e => {
+					if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName) || list.style.zIndex != 9000 + openDialogs) return;
+					e.stopImmediatePropagation();
+					e.stopPropagation();
+					window.removeEventListener('keydown', handleChapterListEscape)
+					return setChapterList(false);
+				}
+				window.addEventListener('keydown', handleChapterListEscape)
+				uninstallFuncs.push(() => window.removeEventListener('keydown', handleChapterListEscape));
 			}
 
 
@@ -666,6 +683,10 @@ r2 = (async function main() {
 
 		const setChapterList = (render) => {
 			rendering = render
+
+			if (render) openDialogs++;
+			else openDialogs--;
+
 			renderChapterList();
 		}
 
