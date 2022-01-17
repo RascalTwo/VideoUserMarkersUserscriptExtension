@@ -4,7 +4,11 @@
 // @grant    none
 // @match    https://www.twitch.tv/*
 // ==/UserScript==
-console.log('[R2 Twitch Chapters] Script Started')
+function log(...args){
+	console.log('[R2 Twitch Chapters]', ...args)
+}
+
+log('Script Started');
 
 /**
  * Do nothing
@@ -322,8 +326,6 @@ function generateTwitchTimestamp(seconds) {
 ids = (() => {
 	let userID = undefined;
 	let vid = undefined;
-	// Get VID from URL if VOD
-	if (isVOD()) vid = window.location.href.split('/').slice(-1)[0].split('?')[0];
 
 	/**
 	 * Get the ID of the page user
@@ -342,6 +344,7 @@ ids = (() => {
 			"method": "POST",
 		}).then(r => r.json()).then(json => {
 			userID = json.data.user.id;
+			log('GQL User ID:', userID);
 			return userID;
 		});
 	}
@@ -353,6 +356,11 @@ ids = (() => {
 	 * @returns {string}
 	 */
 	async function getVideoID(promptUser) {
+		// Get VID from URL if VOD
+		if (isVOD()) {
+			vid = window.location.href.split('/').slice(-1)[0].split('?')[0];
+			return vid;
+		}
 		if (promptUser && vid === null) {
 			const response = await dialog('prompt', 'Video ID could not be detected, please provide it:');
 			if (!response) return;
@@ -368,11 +376,17 @@ ids = (() => {
 			"method": "POST",
 		})).then(r => r.json()).then(json => {
 			vid = json.data.user.stream.archiveVideo?.id ?? null
+			log('GQL VOD ID:', vid);
 			return getVideoID(promptUser);
 		});
 	}
 
-	return { getUserID, getVideoID }
+	function clearCache(){
+		userID = undefined;
+		vid = undefined
+	}
+
+	return { getUserID, getVideoID, clearCache }
 })();
 
 /**
@@ -391,30 +405,34 @@ async function trackDelay(promise) {
 // Run uninstall if previously loaded, development only
 window?.r2?.then(ret => ret.uninstall());
 r2 = (async function main() {
-	console.log('[R2 Twitch Chapters] Setup Started');
+	log('Setup Started');
 
 	while (document.readyState !== 'complete') {
 		await delay(1000);
-		console.log('[R2 Twitch Chapters] Waiting for complete document...');
+		log('Waiting for complete document...');
 	}
 
-	const uninstallFuncs = [];
+	const uninstallFuncs = [ids.clearCache];
 	async function uninstall() {
+		log('Uninstalling...');
 		for (const func of uninstallFuncs) await func()
+		log('Uninstalled');
 	}
 
 	function reinstallOnChange(reinstall = () => false) {
 		const url = window.location.href;
 		const interval = setInterval(() => {
-			if (!reinstall() && window.location.href === url) return;
-			clearInterval(interval);
-			uninstall().then(main);
+			if (reinstall() || window.location.href !== url) {
+				log('reinstall:', reinstall(), 'urls not equal:', window.location.href !== url)
+				clearInterval(interval);
+				uninstall().then(main);
+			}
 		}, 1000);
 		return () => clearInterval(interval);
 	}
 
 	if (!isVOD() && !isLive()) {
-		console.log(`[R2 Twitch Chapters] Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
+		log(`[R2 Twitch Chapters] Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
 		uninstallFuncs.push(reinstallOnChange(() => isVOD() || isLive()));
 		return { chapters: [], uninstall }
 	}
@@ -430,7 +448,7 @@ r2 = (async function main() {
 		if (isLive()) break;
 		if (isVOD() && document.querySelector('.seekbar-bar')) break;
 
-		console.log('[R2 Twitch Chapters] Waiting for player...');
+		log('Waiting for player...');
 	}
 
 	/**
@@ -932,7 +950,7 @@ r2 = (async function main() {
 
 	if (chapters.length) await handleChapterUpdate();
 
-	console.log('[R2 Twitch Chapters] Setup Ended');
+	log('Setup Ended');
 	return { chapters, uninstall };
 })();
-console.log('[R2 Twitch Chapters] Script Ended');
+log('Script Ended');
