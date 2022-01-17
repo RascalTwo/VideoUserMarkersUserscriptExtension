@@ -423,7 +423,6 @@ r2 = (async function main() {
 		const url = window.location.href;
 		const interval = setInterval(() => {
 			if (reinstall() || window.location.href !== url) {
-				log('reinstall:', reinstall(), 'urls not equal:', window.location.href !== url)
 				clearInterval(interval);
 				uninstall().then(main);
 			}
