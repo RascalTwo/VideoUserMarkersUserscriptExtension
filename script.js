@@ -460,22 +460,7 @@ r2 = (async function main() {
 	 */
 	async function setTime(seconds) {
 		const bar = document.querySelector('[data-a-target="player-seekbar"]');
-
-		let { minX, x, maxX } = getTimeXY(seconds)
-		// Binary search elimination to find exact X to get to desired seconds
-		while (true) {
-			const event = new MouseEvent('click', { clientX: x });
-			// Directly hook into onClick of react element, bar.dispatchEvent(event) did NOT work
-			Object.entries(bar).find(([key]) => key.startsWith('__reactEventHandlers'))[1].onClick(event);
-			await delay(50);
-			const current = await getCurrentTimeLive();
-			if (current === seconds) break;
-			if (current > seconds) maxX = x;
-			if (current < seconds) minX = x;
-			x = (maxX + minX) / 2
-			// Escape hatches: if min becomes greater then max or the difference between the min and max is less then a 10th of a pixel
-			if (minX >= maxX || Math.abs(minX - maxX) <= 0.1) break;
-		}
+		Object.entries(bar.parentNode).find(([key]) => key.startsWith('__reactEventHandlers'))[1].children[2].props.onThumbLocationChange(seconds)
 	}
 
 	function seekToChapter(chapter, e) {
