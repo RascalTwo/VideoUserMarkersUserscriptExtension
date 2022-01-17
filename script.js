@@ -518,9 +518,11 @@ r2 = (async function main() {
 		return handleChapterUpdate().then(() => chapter);
 	}
 
-	const { removeChapterList, renderChapterList, setChapterList } = (() => {
+	const { removeChapterList, renderChapterList, setChapterList, uninstallChapterList } = (() => {
 		let rendering = false;
 		let last = { x: 0, y: 0 };
+
+		const getCurrentChapterLI = (list) => getCurrentTimeLive().then(now => list.querySelectorAll('li')[(chapters.map((c, i) => [c, i]).filter(([c]) => c.seconds <= now).slice(-1)[0] ?? [null, -1])[1]]);
 
 		function renderChapterList() {
 			if (!rendering) return removeChapterList();
@@ -686,12 +688,7 @@ r2 = (async function main() {
 
 				document.body.appendChild(list);
 
-				delay(1000).then(() => getCurrentTimeLive()).then(now => {
-					const index = (chapters.map((c, i) => [c, i]).filter(([c]) => c.seconds <= now).slice(-1)[0] ?? [null, -1])[1]
-					if (index === -1) return;
-					log(index, list.querySelectorAll('li'))
-					list.querySelectorAll('li')[index].scrollIntoView({ behavior: 'smooth' });
-				});
+				delay(1000).then(() => getCurrentChapterLI(list)).then(li => li?.scrollIntoView())
 			}
 		}
 
@@ -708,8 +705,27 @@ r2 = (async function main() {
 			renderChapterList();
 		}
 
-		return { removeChapterList, renderChapterList, setChapterList }
+		const uninstallChapterList = (() => {
+			let lastLi = null;
+			const interval = setInterval(() => {
+				const list = document.querySelector('.r2_chapter_list');
+				return !list ? null : getCurrentChapterLI(list).then(li => {
+					if (!li) return;
+
+					li.style.backgroundColor = 'black'
+					if (li === lastLi) return;
+					if (lastLi) lastLi.style.backgroundColor = '';
+					lastLi = li;
+				});
+			}, 1000);
+
+			return () => clearInterval(interval);
+		})();
+
+		return { removeChapterList, renderChapterList, setChapterList, uninstallChapterList }
 	})();
+
+	uninstallFuncs.push(uninstallChapterList);
 
 	async function editChapter(chapter, seconds, name) {
 		let minimal = await dialog('prompt', 'Edit Chapter:', () => {
