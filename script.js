@@ -586,7 +586,6 @@ r2 = (async function main() {
 				header.appendChild(closeButton);
 
 				uninstallFuncs.push(attachEscapeHandler(() => setChapterList(false), () => list.style.zIndex == 9000 + openDialogs))
-				uninstallFuncs.push(() => window.removeEventListener('keydown', handleChapterListEscape));
 			}
 
 
@@ -686,6 +685,13 @@ r2 = (async function main() {
 				list.appendChild(closeButton);
 
 				document.body.appendChild(list);
+
+				delay(1000).then(() => getCurrentTimeLive()).then(now => {
+					const index = (chapters.map((c, i) => [c, i]).filter(([c]) => c.seconds <= now).slice(-1)[0] ?? [null, -1])[1]
+					if (index === -1) return;
+					log(index, list.querySelectorAll('li'))
+					list.querySelectorAll('li')[index].scrollIntoView({ behavior: 'smooth' });
+				});
 			}
 		}
 
