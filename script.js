@@ -925,16 +925,9 @@ r2 = (async function main() {
 	window.addEventListener('keydown', keydownHandler);
 	uninstallFuncs.push(() => window.removeEventListener('keydown', keydownHandler));
 
-	let renderTimeout = 0;
-	/**
-	 * Handle window resizing
-	 */
-	const resizeHandler = () => {
-		clearTimeout(renderTimeout);
-		renderTimeout = setTimeout(handleChapterUpdate, 1000);
-	};
-	window.addEventListener('resize', resizeHandler);
-	uninstallFuncs.push(() => window.removeEventListener('resize', resizeHandler));
+	const resizeObserver = new ResizeObserver(handleChapterUpdate);
+	resizeObserver.observe(document.querySelector('video'));
+	uninstallFuncs.push(() => resizeObserver.unobserve(document.querySelector('video')));
 
 
 	if (chapters.length) await handleChapterUpdate();
