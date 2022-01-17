@@ -731,6 +731,10 @@ r2 = (async function main() {
 				e.preventDefault();
 				setTime(Number(chapterName.dataset.seconds));
 			});
+			chapterName.addEventListener('contextmenu', e => {
+				e.preventDefault();
+				setChapterList(true);
+			});
 
 			document.querySelector('[data-a-target="player-volume-slider"]').parentNode.parentNode.parentNode.parentNode.appendChild(chapterName);
 
