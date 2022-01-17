@@ -82,7 +82,7 @@ async function dialog(type, message, sideEffect) {
 			const response = canceled ? null : generateResponse();
 			form.remove();
 			openDialogs--;
-			window.removeEventListener('keydown', handleDialogEscape);
+			removeEscapeHandler();
 			return resolve(response);
 		}
 		form.addEventListener('submit', handleSubmit)
@@ -165,18 +165,8 @@ async function dialog(type, message, sideEffect) {
 		form.appendChild(actions)
 
 		document.body.appendChild(form);
-		const handleDialogEscape = e => {
-			if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName) || form.style.zIndex != 9000 + openDialogs) return;
-			canceled = true;
+		const removeEscapeHandler = attachEscapeHandler(handleSubmit, () => form.style.zIndex == 9000 + openDialogs);
 
-			// Stop other escape handlers from being triggered
-			e.preventDefault();
-			e.stopImmediatePropagation();
-			e.stopPropagation();
-
-			return handleSubmit();
-		}
-		window.addEventListener('keydown', handleDialogEscape)
 		setTimeout(() => {
 			pre();
 			afterCreated?.(form)
@@ -405,6 +395,23 @@ async function trackDelay(promise) {
 	return { delay: Date.now() - requested, response };
 }
 
+function attachEscapeHandler(action, check = () => true) {
+	const handler = e => {
+		if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+		if (!check()) return;
+
+		// Stop other escape handlers from being triggered
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		e.stopPropagation();
+
+		window.removeEventListener('keydown', handler)
+		return action();
+	}
+	window.addEventListener('keydown', handler)
+	return () => window.removeEventListener('keydown', handler);
+}
+
 
 // Run uninstall if previously loaded, development only
 window?.r2?.then(ret => ret.uninstall());
@@ -578,19 +585,7 @@ r2 = (async function main() {
 
 				header.appendChild(closeButton);
 
-
-				const handleChapterListEscape = e => {
-					if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName) || list.style.zIndex != 9000 + openDialogs) return;
-
-					// Stop other escape handlers from being triggered
-					e.preventDefault();
-					e.stopImmediatePropagation();
-					e.stopPropagation();
-
-					window.removeEventListener('keydown', handleChapterListEscape)
-					return setChapterList(false);
-				}
-				window.addEventListener('keydown', handleChapterListEscape)
+				uninstallFuncs.push(attachEscapeHandler(() => setChapterList(false), () => list.style.zIndex == 9000 + openDialogs))
 				uninstallFuncs.push(() => window.removeEventListener('keydown', handleChapterListEscape));
 			}
 
