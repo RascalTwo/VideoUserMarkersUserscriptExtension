@@ -415,10 +415,7 @@ r2 = (async function main() {
 
 	if (!isVOD() && !isLive()) {
 		console.log(`[R2 Twitch Chapters] Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
-		uninstallFuncs.push(reinstallOnChange(() => {
-			console.log('Chapters:', isVOD(), isLive());
-			return isVOD() || isLive();
-		}));
+		uninstallFuncs.push(reinstallOnChange(() => isVOD() || isLive()));
 		return { chapters: [], uninstall }
 	}
 
