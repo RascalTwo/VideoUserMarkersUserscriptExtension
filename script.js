@@ -721,10 +721,16 @@ r2 = (async function main() {
 
 	if (isVOD()) {
 		uninstallFuncs.push((() => {
-			const chapterName = document.createElement('span');
+			const chapterName = document.createElement('anchor');
+			chapterName.href = '#';
+			chapterName.style.cursor = 'hover';
 			chapterName.style.paddingLeft = '1em';
 			chapterName.className = 'r2_current_chapter';
 			chapterName.dataset.controled = ''
+			chapterName.addEventListener('click', e => {
+				e.preventDefault();
+				setTime(Number(chapterName.dataset.seconds));
+			});
 
 			document.querySelector('[data-a-target="player-volume-slider"]').parentNode.parentNode.parentNode.parentNode.appendChild(chapterName);
 
@@ -732,9 +738,11 @@ r2 = (async function main() {
 				if (chapterName.dataset.controled) return;
 
 				const now = await getCurrentTimeLive()
-				const name = chapters.filter(c => c.seconds <= now).slice(-1)[0]?.name
+				const chapter = chapters.filter(c => c.seconds <= now).slice(-1)[0] ?? null
 
-				if (name && chapterName.textContent !== name) chapterName.textContent = name;
+				if (!chapter || chapterName.dataset.seconds == chapter.seconds) return
+				chapterName.textContent = chapter.name;
+				chapterName.dataset.seconds = chapter.seconds;
 			}, 1000);
 
 			return () => {
@@ -757,8 +765,12 @@ r2 = (async function main() {
 				chapterName.dataset.controled = 'true'
 
 				const seconds = xToSeconds(e.layerX);
-				const name = chapters.filter(c => c.seconds <= seconds).slice(-1)[0]?.name
-				if (name && chapterName.textContent !== name) chapterName.textContent = name;
+
+				const chapter = chapters.filter(c => c.seconds <= seconds).slice(-1)[0] ?? null
+
+				if (!chapter || chapterName.dataset.seconds == chapter.seconds) return
+				chapterName.textContent = chapter.name;
+				chapterName.dataset.seconds = chapter.seconds;
 			}
 
 			const handleMouseLeave = () => {
