@@ -111,9 +111,9 @@ async function dialog(type, message, sideEffect) {
 					() => input.value.trim(),
 					() => input.focus(),
 					() => {
-						if (type === 'input') return;
 						const lines = input.value.split('\n')
 						const longestLine = Math.max(...lines.map(line => line.length))
+						if (!longestLine) return;
 						input.style.width = Math.max(input.offsetWidth, longestLine * getCHWidth()) + 'px';
 					},
 					NOOP
