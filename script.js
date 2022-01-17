@@ -168,8 +168,12 @@ async function dialog(type, message, sideEffect) {
 		const handleDialogEscape = e => {
 			if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName) || form.style.zIndex != 9000 + openDialogs) return;
 			canceled = true;
+
+			// Stop other escape handlers from being triggered
+			e.preventDefault();
 			e.stopImmediatePropagation();
 			e.stopPropagation();
+
 			return handleSubmit();
 		}
 		window.addEventListener('keydown', handleDialogEscape)
@@ -481,24 +485,22 @@ r2 = (async function main() {
 	}
 
 	function seekToChapter(chapter, e) {
-		e?.preventDefault();
-		e?.stopImmediatePropagation()
-		e?.stopPropagation()
+		// Stop native seekbar behavior
+		e?.stopImmediatePropagation();
+		e?.stopPropagation();
 		return setTime(chapter.seconds);
 	}
 
 	function startEditingChapter(chapter, seconds, name, e) {
+		// Disable context menu
 		e?.preventDefault();
+		// Stop native seekbar behavior
 		e?.stopImmediatePropagation()
 		e?.stopPropagation()
 		return editChapter(chapter, seconds, name);
 	}
 
 	function deleteChapter(chapter, e) {
-		e?.preventDefault();
-		e.stopImmediatePropagation();
-		e.stopPropagation();
-
 		const index = chapters.findIndex(c => c.seconds === chapter.seconds)
 		chapters.splice(index, 1);
 		return handleChapterUpdate();
@@ -545,12 +547,10 @@ r2 = (async function main() {
 
 				let dragging = false;
 				header.addEventListener('mousedown', (e) => {
-					e.preventDefault()
 					dragging = true
 					last = { x: e.clientX, y: e.clientY }
 				})
-				const handleMouseUp = (e) => {
-					e.preventDefault()
+				const handleMouseUp = () => {
 					dragging = false;
 				}
 				document.body.addEventListener('mouseup', handleMouseUp);
@@ -558,7 +558,6 @@ r2 = (async function main() {
 				const handleMouseMove = (e) => {
 					if (!dragging) return;
 
-					e.preventDefault();
 					list.style.top = (list.offsetTop - (last.y - e.clientY)) + 'px'
 					list.style.left = (list.offsetLeft - (last.x - e.clientX)) + 'px'
 					last = { x: e.clientX, y: e.clientY }
@@ -582,8 +581,12 @@ r2 = (async function main() {
 
 				const handleChapterListEscape = e => {
 					if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName) || list.style.zIndex != 9000 + openDialogs) return;
+
+					// Stop other escape handlers from being triggered
+					e.preventDefault();
 					e.stopImmediatePropagation();
 					e.stopPropagation();
+
 					window.removeEventListener('keydown', handleChapterListEscape)
 					return setChapterList(false);
 				}
@@ -607,9 +610,9 @@ r2 = (async function main() {
 				if (!existingLi) {
 					time.style.fontFamily = 'monospace'
 					time.addEventListener('wheel', function (chapter, e) {
+						// Stop native scrolling
 						e.preventDefault();
-						e.stopImmediatePropagation();
-						e.stopPropagation();
+
 						return adjustChapterSeconds(chapter, Math.min(Math.max(e.deltaY, -1), 1))
 							.then(chapter => isVOD() && setTime(chapter.seconds));
 					}.bind(null, chapter))
@@ -755,10 +758,13 @@ r2 = (async function main() {
 			chapterName.className = 'r2_current_chapter';
 			chapterName.dataset.controled = ''
 			chapterName.addEventListener('click', e => {
+				// Prevent anchor behavior
 				e.preventDefault();
+
 				setTime(Number(chapterName.dataset.seconds));
 			});
 			chapterName.addEventListener('contextmenu', e => {
+				// Stop context menu
 				e.preventDefault();
 				setChapterList(true);
 			});
