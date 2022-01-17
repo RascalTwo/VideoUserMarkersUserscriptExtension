@@ -4,7 +4,7 @@
 // @grant    none
 // @match    https://www.twitch.tv/*
 // ==/UserScript==
-function log(...args){
+function log(...args) {
 	console.log('[R2 Twitch Chapters]', ...args)
 }
 
@@ -381,7 +381,7 @@ ids = (() => {
 		});
 	}
 
-	function clearCache(){
+	function clearCache() {
 		userID = undefined;
 		vid = undefined
 	}
