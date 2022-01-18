@@ -693,8 +693,10 @@ r2 = (async function main() {
 
 					const timeText = document.createElement('span');
 					timeText.textContent = timeContent;
-					timeText.style.cursor = 'pointer';
-					if (isVOD()) timeText.addEventListener('click', seekToChapter.bind(null, chapter))
+					if (isVOD()) {
+						timeText.style.cursor = 'pointer';
+						timeText.addEventListener('click', seekToChapter.bind(null, chapter))
+					}
 					timeText.addEventListener('contextmenu', startEditingChapter.bind(null, chapter, true, false))
 					time.appendChild(timeText);
 
@@ -713,10 +715,12 @@ r2 = (async function main() {
 				const title = li.querySelector('span.r2_chapter_title') || document.createElement('span');
 				if (!existingLi) {
 					title.className = 'r2_chapter_title'
-					title.style.cursor = 'pointer';
 					title.style.flex = 1;
 					title.style.textAlign = 'center';
-					if (isVOD()) title.addEventListener('click', seekToChapter.bind(null, chapter))
+					if (isVOD()) {
+						title.style.cursor = 'pointer';
+						title.addEventListener('click', seekToChapter.bind(null, chapter))
+					}
 					title.addEventListener('contextmenu', startEditingChapter.bind(null, chapter, false, true))
 					li.appendChild(title);
 				}
