@@ -242,35 +242,6 @@ function getLoginName() {
 };
 
 /**
- * Parse from Minimal to Chapter objects
- *
- * @param {string} text
- * @yields {{ name: string, seconds: number }}
- */
-function* parseMinimalChapters(text) {
-	for (const line of text.trim().split('\n').map(line => line.trim()).filter(Boolean)) {
-		const [dhms, ...otherWords] = line.split(/\s/);
-		const seconds = DHMStoSeconds(dhms.split(':').map(Number));
-		const name = otherWords.join(' ');
-		yield { name, seconds }
-	}
-}
-
-/**
- * Convert chapters to Minimal text
- *
- * @param {{ name: string, seconds: number }[]} chapters
- */
-function* chaptersToMinimal(chapters) {
-	chapters.sort((a, b) => a.seconds - b.seconds);
-	const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
-	for (const chapter of chapters) {
-		const dhms = secondsToDHMS(chapter.seconds, places)
-		yield [dhms, chapter.name].join('\t');
-	}
-}
-
-/**
  * Convert DHMS to seconds, each part is optional except seconds
  *
  * @param {number[]} parts DHMS numberic parts
@@ -412,6 +383,92 @@ function attachEscapeHandler(action, check = () => true) {
 	return () => window.removeEventListener('keydown', handler);
 }
 
+class ChapterFormatter {
+	static *serialize(content) {
+		return []
+	}
+	static *deserialize(chapters) {
+		return ''
+	}
+	static serializeAll(content) {
+		return Array.from(this.serialize(content))
+	}
+	static deserializeAll(chapters) {
+		return Array.from(this.deserialize(chapters))
+	}
+	static serializeSeconds(seconds) {
+		return seconds;
+	}
+	static deserializeSeconds(serializedSeconds) {
+		return serializedSeconds;
+	}
+	static serializeName(name) {
+		return name;
+	}
+	static deserializeName(serializedName) {
+		return serializedName;
+	}
+}
+
+chapterFormatters = {
+	json: class JSONFormatter extends ChapterFormatter {
+		multiline = false;
+		static serializeAll(chapters) {
+			return JSON.stringify(chapters);
+		}
+		static deserializeAll(content) {
+			return JSON.parse(content);
+		}
+	},
+	minimal: class MinimalFormatter extends ChapterFormatter {
+		static * serialize(chapters) {
+			const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
+			for (const chapter of chapters) {
+				const dhms = secondsToDHMS(chapter.seconds, places)
+				yield [dhms, chapter.name].join('\t');
+			}
+		}
+		static * deserialize(content) {
+			for (const line of content.trim().split('\n').map(line => line.trim()).filter(Boolean)) {
+				const [dhms, ...otherWords] = line.split(/\s/);
+				const seconds = DHMStoSeconds(dhms.split(':').map(Number));
+				const name = otherWords.join(' ');
+				yield { name, seconds }
+			}
+		}
+		static serializeAll(chapters) {
+			return Array.from(this.serialize(chapters)).join('\n');
+		}
+		static deserializeAll(content) {
+			return Array.from(this.deserialize(content));
+		}
+		static serializeSeconds(seconds) {
+			return secondsToDHMS(seconds);
+		}
+		static deserializeSeconds(serializedSeconds) {
+			return DHMStoSeconds(serializedSeconds.split(':').map(Number));
+		}
+	}
+}
+
+function getUIFormatter() {
+	return chapterFormatters[localStorage.getItem('r2_twitch_chapters_ui_formatter') ?? 'minimal'];
+}
+function setUIFormatter(formatter) {
+	return localStorage.setItem('r2_twitch_chapters_ui_formatter', formatter);
+}
+
+async function loadFromLocalstorage() {
+	return JSON.parse(localStorage.getItem('r2_twitch_chapters_' + await ids.getVideoID()) ?? '{"formatter": "json", "content": "[]"}')
+}
+
+async function saveToLocalstorage(formatter, chapters) {
+	localStorage.setItem('r2_twitch_chapters_' + await ids.getVideoID(), JSON.stringify({
+		formatter,
+		content: chapterFormatters[formatter].serializeAll(chapters)
+	}));
+}
+
 
 // Run uninstall if previously loaded, development only
 window?.r2?.then(ret => ret.uninstall());
@@ -450,7 +507,16 @@ r2 = (async function main() {
 	uninstallFuncs.push(reinstallOnChange());
 
 	// Get last segment of URL, which is the video ID
-	const chapters = JSON.parse(localStorage.getItem('r2_chapters_' + await ids.getVideoID()) ?? '[]');
+	const chapters = await (async () => {
+		const { formatter, content } = await loadFromLocalstorage();
+		if (!(formatter in chapterFormatters)) {
+			dialog('alert', `Formatter for saved content does not exist: ${formatter}`)
+			return null;
+		}
+		return chapterFormatters[formatter].deserializeAll(content);
+	})();
+
+	if (chapters === null) return log('Error loading chapters, abandoning');
 
 	while (true) {
 		await delay(1000);
@@ -504,7 +570,10 @@ r2 = (async function main() {
 		// Stop native seekbar behavior
 		e?.stopImmediatePropagation()
 		e?.stopPropagation()
-		return editChapter(chapter, seconds, name);
+
+		if (seconds && name) return editChapter(chapter);
+		else if (seconds) return editChapterSeconds(chapter);
+		return editChapterName(chapter);
 	}
 
 	function deleteChapter(chapter, e) {
@@ -727,29 +796,47 @@ r2 = (async function main() {
 
 	uninstallFuncs.push(uninstallChapterList);
 
-	async function editChapter(chapter, seconds, name) {
-		let minimal = await dialog('prompt', 'Edit Chapter:', () => {
-			let content = Array.from(chaptersToMinimal([chapter]))[0]
-			if (!seconds || !name) content = content.split('\t')[Number(name)].trim();
-			return ['input', content];
-		});
-		if (minimal === null) return;
-		if (!seconds) minimal = '0 ' + minimal
-		else if (!name) minimal = minimal + ' 0'
-		const edited = Array.from(parseMinimalChapters(minimal))[0]
-		if (!edited) return deleteChapter(chapter);
-		else {
-			if (seconds && name) Object.assign(chapter, edited);
-			else if (seconds) chapter.seconds = edited.seconds;
-			else if (name) chapter.name = edited.name;
-		}
+	async function editChapterSeconds(chapter) {
+		const formatter = getUIFormatter();
+		const response = await dialog('prompt', 'Edit Time:', () => [formatter.multiline ? 'textarea' : 'input', formatter.serializeSeconds(chapter.seconds)]);
+		if (response === null) return;
+
+		const seconds = formatter.deserializeSeconds(response);
+		if (!seconds) return;
+
+		chapter.seconds = seconds;
+		return handleChapterUpdate();
+	}
+
+	async function editChapterName(chapter) {
+		const formatter = getUIFormatter();
+		const response = await dialog('prompt', 'Edit Name:', () => [formatter.multiline ? 'textarea' : 'input', formatter.serializeName(chapter.name)]);
+		if (response === null) return;
+
+		const name = formatter.deserializeName(response);
+		if (!name) return;
+
+		chapter.name = name;
+		return handleChapterUpdate();
+	}
+
+	async function editChapter(chapter) {
+		const formatter = getUIFormatter();
+		const response = await dialog('prompt', 'Edit Chapter:', () => [formatter.multiline ? 'textarea' : 'input', formatter.serializeAll(chapter.name)[0]]);
+		if (response === null) return;
+
+		const edited = formatter.deserializeAll(response)[0];
+		if (!edited) return;
+
+		Object.assign(chapter, edited);
 		return handleChapterUpdate();
 	}
 
 	async function editAllChapters() {
-		const minimal = await dialog('prompt', 'Edit Chapters', () => ['textarea', Array.from(chaptersToMinimal(chapters)).join('\n')]);
-		if (minimal === null) return;
-		chapters.splice(0, chapters.length, ...Array.from(parseMinimalChapters(minimal)));
+		const formatter = getUIFormatter()
+		const response = await dialog('prompt', 'Edit Serialized Chapters', () => ['textarea', formatter.serializeAll(chapters)]);
+		if (response === null) return;
+		chapters.splice(0, chapters.length, ...formatter.deserializeAll(response));
 		return handleChapterUpdate();
 	}
 
@@ -762,7 +849,7 @@ r2 = (async function main() {
 	 */
 	let getCurrentTimeLive = async () => 0;
 	let chapterChangeHandlers = [
-		async () => localStorage.setItem('r2_chapters_' + await ids.getVideoID(), JSON.stringify(chapters)),
+		() => loadFromLocalstorage().then(({ formatter }) => saveToLocalstorage(formatter, chapters)),
 		renderChapterList
 	]
 
@@ -942,21 +1029,10 @@ r2 = (async function main() {
 
 
 	/**
-	 * Import minimal chapter text
+	 * Export chapter objects into serailized format
 	 */
-	async function importMinimal() {
-		const markdown = await dialog('prompt', 'Minimal Text:', () => ['textarea', ''])
-		if (markdown === null) return;
-		chapters.splice(0, chapters.length, ...Array.from(parseMinimalChapters(markdown)));
-		return handleChapterUpdate();
-	}
-
-
-	/**
-	 * Export chapter objects into minimal chapters
-	 */
-	const exportMarkdown = () => {
-		navigator.clipboard.writeText(Array.from(chaptersToMinimal(chapters)).join('\n'));
+	const exportSerialized = async () => {
+		await navigator.clipboard.writeText(getUIFormatter().serializeAll(chapters));
 		return dialog('alert', 'Exported to Clipboard!');
 	}
 
@@ -965,14 +1041,12 @@ r2 = (async function main() {
 	 */
 	const menu = async () => {
 		const choice = await dialog('choose', 'Twitch Chapters Menu', () => ({
-			Import: 'i',
 			Export: 'x',
 			Edit: 'e',
 			List: 'l'
 		}))
 		if (!choice) return;
-		if (choice === 'i') return importMinimal()
-		else if (choice === 'x') return exportMarkdown();
+		else if (choice === 'x') return exportSerialized();
 		else if (choice === 'e') return editAllChapters();
 		else if (choice === 'l') return setChapterList(true);
 	}
