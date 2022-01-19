@@ -527,6 +527,10 @@ r2 = (async function main() {
 		log('Waiting for player...');
 	}
 
+	function findChapter(seconds) {
+		return chapters.find(chapter => chapter.seconds === seconds);
+	}
+
 	/**
 	 * Get X and Y of the seconds provided
 	 *
@@ -663,48 +667,53 @@ r2 = (async function main() {
 			chapters.sort((a, b) => a.seconds - b.seconds);
 			const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
 
+			function getElementChapter(e) {
+				return findChapter(Number(e.target.closest('[data-seconds]').dataset.seconds))
+			}
+
 			for (const [i, chapter] of chapters.entries()) {
 				const existingLi = list.querySelectorAll('li')[i]
 				const li = existingLi || document.createElement('li')
-				li.style.display = 'flex';
-				li.style.alignItems = 'center';
+				li.dataset.seconds = chapter.seconds;
+				if (!existingLi) {
+					li.style.display = 'flex';
+					li.style.alignItems = 'center';
+				}
 
 				const timeContent = secondsToDHMS(chapter.seconds, places);
 
 				const time = li.querySelector('span') || document.createElement('span');
 				if (!existingLi) {
 					time.style.fontFamily = 'monospace'
-					time.addEventListener('wheel', function (chapter, e) {
+					time.addEventListener('wheel', e => {
 						// Stop native scrolling
 						e.preventDefault();
 
-						return adjustChapterSeconds(chapter, Math.min(Math.max(e.deltaY, -1), 1))
+						return adjustChapterSeconds(getElementChapter(e), Math.min(Math.max(e.deltaY, -1), 1))
 							.then(chapter => isVOD() && setTime(chapter.seconds));
-					}.bind(null, chapter))
+					})
 
 					const decrease = document.createElement('button');
 					decrease.className = getButtonClass();
 					decrease.textContent = '-';
 					decrease.title = 'Subtract 1 second';
-					decrease.addEventListener('click', function (chapter) {
-						return adjustChapterSeconds(chapter, -1).then(chapter => isVOD() && setTime(chapter.seconds));
-					}.bind(null, chapter));
+					decrease.addEventListener('click', (e) => adjustChapterSeconds(getElementChapter(e), -1).then(chapter => isVOD() && setTime(chapter.seconds)));
 					time.appendChild(decrease);
 
 					const timeText = document.createElement('span');
 					timeText.textContent = timeContent;
 					if (isVOD()) {
 						timeText.style.cursor = 'pointer';
-						timeText.addEventListener('click', seekToChapter.bind(null, chapter))
+						timeText.addEventListener('click', e => seekToChapter(getElementChapter(e), e))
 					}
-					timeText.addEventListener('contextmenu', startEditingChapter.bind(null, chapter, true, false))
+					timeText.addEventListener('contextmenu', e => startEditingChapter(getElementChapter(e), true, false, e))
 					time.appendChild(timeText);
 
 					const increase = document.createElement('button');
 					increase.className = getButtonClass();
 					increase.textContent = '+';
 					increase.title = 'Add 1 second';
-					increase.addEventListener('click', adjustChapterSeconds.bind(null, chapter, 1));
+					increase.addEventListener('click', e => adjustChapterSeconds(getElementChapter(e), 1).then(chapter => isVOD() && setTime(chapter.seconds)));
 					time.appendChild(increase);
 					li.appendChild(time);
 				}
@@ -719,9 +728,9 @@ r2 = (async function main() {
 					title.style.textAlign = 'center';
 					if (isVOD()) {
 						title.style.cursor = 'pointer';
-						title.addEventListener('click', seekToChapter.bind(null, chapter))
+						title.addEventListener('click', e => seekToChapter(getElementChapter(e), e))
 					}
-					title.addEventListener('contextmenu', startEditingChapter.bind(null, chapter, false, true))
+					title.addEventListener('contextmenu', e => startEditingChapter(getElementChapter(e), false, true, e))
 					li.appendChild(title);
 				}
 				title.textContent = chapter.name;
@@ -732,9 +741,9 @@ r2 = (async function main() {
 					share.classList.add('r2_chapter_share');
 					share.style.float = 'right';
 					share.textContent = 'Share'
-					share.addEventListener('click', async function (chapter) {
-						navigator.clipboard.writeText(`https://twitch.tv/videos/${await ids.getVideoID()}?t=${generateTwitchTimestamp(chapter.seconds)}`);
-					}.bind(null, chapter))
+					share.addEventListener('click', async (e) => {
+						navigator.clipboard.writeText(`https://twitch.tv/videos/${await ids.getVideoID()}?t=${generateTwitchTimestamp(getElementChapter(e).seconds)}`);
+					})
 					li.appendChild(share);
 				}
 
@@ -744,7 +753,7 @@ r2 = (async function main() {
 					deleteBtn.classList.add('r2_chapter_delete');
 					deleteBtn.style.float = 'right';
 					deleteBtn.textContent = 'Delete'
-					deleteBtn.addEventListener('click', deleteChapter.bind(null, chapter))
+					deleteBtn.addEventListener('click', e => deleteChapter(getElementChapter(e), e))
 					li.appendChild(deleteBtn);
 				}
 
