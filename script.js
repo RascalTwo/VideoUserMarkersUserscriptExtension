@@ -939,6 +939,19 @@ r2 = (async function main() {
 				bar.removeEventListener('mouseleave', handleMouseLeave);
 			}
 		})());
+
+		uninstallFuncs.push((() => {
+			const handleWheel = async (e) => {
+				e.preventDefault();
+				const change = Math.min(Math.max(e.deltaY, -1), 1);
+				await setTime((await getCurrentTimeLive()) + change);
+			}
+			const bar = document.querySelector('.seekbar-bar').parentNode;
+			bar.addEventListener('wheel', handleWheel);
+			return () => {
+				bar.removeEventListener('wheel', handleWheel);
+			}
+		})());
 		/**
 		 * Remove chapter DOM elements, done before rendering and uninstall
 		 */
