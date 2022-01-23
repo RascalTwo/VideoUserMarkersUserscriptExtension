@@ -6,12 +6,32 @@
 // @require  https://requirejs.org/docs/release/2.3.6/comments/require.js
 // ==/UserScript==
 
-import { log } from './helpers';
+import { FORMATTERS, getUIFormatter } from './formatters';
+import {
+	log,
+	attachEscapeHandler,
+	clickNodes,
+	delay,
+	DHMStoSeconds,
+	secondsToDHMS,
+	trackDelay,
+	loadFromLocalstorage,
+	saveToLocalstorage,
+} from './helpers';
+import {
+	clearIDsCache,
+	generateTwitchTimestamp,
+	getButtonClass,
+	getVideoID,
+	isAlternatePlayer,
+	isLive,
+	isVOD,
+} from './twitch';
+import { changeDialogCount, dialog, getDialogCount } from './ui';
+import type { Chapter } from './types';
 
 declare global {
 	interface Window {
-		ids: any;
-		chapterFormatters: any;
 		r2: Promise<{
 			uninstall: () => Promise<void>;
 		}>;
@@ -19,504 +39,6 @@ declare global {
 }
 
 log('Script Started');
-
-/**
- * Do nothing
- */
-function NOOP() {}
-
-/**
- * Get the Pixel width of the `ch` unit
- *
- * @returns {number}
- */
-function getCHWidth() {
-	const node = document.createElement('div');
-	node.style.position = 'absolute';
-	node.textContent = 'M';
-
-	document.body.appendChild(node);
-	const width = node.offsetWidth;
-	node.remove();
-	return width;
-}
-
-/**
- * Get CSS class of twitch buttons
- *
- * @returns {string}
- */
-function getButtonClass() {
-	return document.querySelector('[data-a-target="top-nav-get-bits-button"]')?.className ?? '';
-}
-
-/**
- * Delay execution by {@link ms milliseconds}
- *
- * @param {number} ms
- */
-function delay(ms: number) {
-	return new Promise(r => setTimeout(r, ms));
-}
-
-let openDialogs = 0;
-
-/**
- * Show customizable dialog
- *
- * @param {'alert' | 'prompt' | 'choose'} type
- * @param {string} message
- * @param {(form: HTMLFormElement) => any} sideEffect
- */
-async function dialog(
-	type: 'alert' | 'prompt' | 'choose',
-	message: string,
-	sideEffect?: (form: HTMLFormElement) => any
-): Promise<any> {
-	return new Promise(resolve => {
-		openDialogs++;
-
-		let canceled = false;
-
-		const form = document.createElement('form');
-		form.style.position = 'absolute';
-		form.style.zIndex = (9000 + openDialogs).toString();
-		form.style.top = '50%';
-		form.style.left = '50%';
-		form.style.transform = 'translate(-50%, -50%)';
-		form.style.backgroundColor = '#18181b';
-		form.style.padding = '1em';
-		form.style.borderRadius = '1em';
-		form.style.color = 'white';
-		form.style.display = 'flex';
-		form.style.flexDirection = 'column';
-		form.textContent = message;
-		const handleSubmit = (e?: Event) => {
-			e?.preventDefault();
-			const response = canceled ? null : generateResponse(form);
-			form.remove();
-			openDialogs--;
-			removeEscapeHandler();
-			return resolve(response);
-		};
-		form.addEventListener('submit', handleSubmit);
-
-		const [generateResponse, pre, post, afterCreated]: Function[] = {
-			alert: () => [
-				() => true,
-				() => (form.querySelector('button[type="submit"]')! as HTMLElement).focus(),
-				NOOP,
-				sideEffect!,
-			],
-			prompt: () => {
-				const [type, value] = sideEffect?.(form) ?? ['input', ''];
-				const input = document.createElement(type);
-				input.value = value;
-				if (type === 'textarea') input.setAttribute('rows', 10);
-
-				// TODO - trim this down to just the required handlers/preventions
-				const overwriteAlternateHandlers = (e: KeyboardEvent) => {
-					e.stopImmediatePropagation();
-					e.stopPropagation();
-					if (e.key === 'Enter' && e.ctrlKey) handleSubmit();
-				};
-				input.addEventListener('keydown', overwriteAlternateHandlers);
-				input.addEventListener('keypress', overwriteAlternateHandlers);
-				input.addEventListener('keyup', overwriteAlternateHandlers);
-
-				form.appendChild(input);
-				return [
-					() => input.value.trim(),
-					() => input.focus(),
-					() => {
-						const lines: string[] = input.value.split('\n');
-						const longestLine = Math.max(...lines.map(line => line.length));
-						if (!longestLine) return;
-						input.style.width = Math.max(input.offsetWidth, longestLine * getCHWidth()) + 'px';
-					},
-					NOOP,
-				];
-			},
-			choose: () => {
-				form.appendChild(
-					Object.entries(sideEffect!(form)).reduce((fragment, [key, value]) => {
-						const button = document.createElement('button');
-						button.className = getButtonClass();
-						button.textContent = key;
-						button.value = JSON.stringify(value);
-						button.addEventListener('click', () => (form.dataset.value = button.value));
-
-						fragment.appendChild(button);
-						return fragment;
-					}, document.createDocumentFragment())
-				);
-				return [
-					() => JSON.parse(form.dataset.value!),
-					() => {
-						form.querySelector('button[type="submit"]')!.remove();
-						form.querySelector('button')!.focus();
-					},
-					NOOP,
-					NOOP,
-				];
-			},
-		}[type]();
-
-		const actions = document.createElement('div');
-		actions.style.flex = '1';
-		actions.style.display = 'flex';
-		const submit = document.createElement('button');
-		submit.className = getButtonClass();
-		submit.style.flex = '1';
-		submit.textContent = 'OK';
-		submit.type = 'submit';
-		actions.appendChild(submit);
-
-		const cancel = document.createElement('button');
-		cancel.className = getButtonClass();
-		cancel.style.flex = '1';
-		cancel.textContent = 'Cancel';
-		cancel.addEventListener('click', () => (canceled = true));
-		actions.appendChild(cancel);
-		form.appendChild(actions);
-
-		document.body.appendChild(form);
-		const removeEscapeHandler = attachEscapeHandler(
-			handleSubmit,
-			() => form.style.zIndex === (9000 + openDialogs).toString()
-		);
-
-		setTimeout(() => {
-			pre(form);
-			afterCreated?.(form);
-			post(form);
-		}, 250);
-	});
-}
-
-/**
- * Click nodes one by one in {@link queries}, waiting until they are in the DOM one by one
- *
- *
- * @param  {...any} queries queries of nodes to click
- */
-async function clickNodes(...queries: string[]) {
-	for (const query of queries) {
-		while (true) {
-			const node = document.querySelector(query);
-			if (node) {
-				(node as HTMLElement).click();
-				break;
-			} else {
-				await delay(100);
-			}
-		}
-	}
-}
-
-/**
- * If the page is a VOD
- *
- * @returns {boolean}
- */
-function isVOD() {
-	return window.location.pathname.startsWith('/videos');
-}
-
-/**
- * If the page is Live
- *
- * @returns {boolean}
- */
-function isLive() {
-	if (isAlternatePlayer()) return true;
-	const parts = window.location.pathname.split('/').slice(1);
-	// @ts-ignore
-	if (!parts.length === 1 && !!parts[0]) return false;
-	return !!document.querySelector('.user-avatar-card__live');
-}
-
-/**
- * If the page is the Alternate Player
- *
- * @returns {boolean}
- */
-function isAlternatePlayer() {
-	return window.location.href.startsWith('chrome-extension://');
-}
-
-/**
- * Get the username/loginName of the current page
- *
- * @returns {string}
- */
-function getLoginName() {
-	return isAlternatePlayer()
-		? // `channel=loginName` is in the URL
-		  new URLSearchParams(window.location.search).get('channel')
-		: isLive()
-		? // URL ends with loginName
-		  window.location.pathname.split('/')[1]
-		: // URL channel=loginName exists in `og:video` metadata
-		  new URLSearchParams(
-				document
-					.querySelector('meta[property="og:video"]')!
-					.getAttribute('content')!
-					.split('?')
-					.slice(1)
-					.join('?')
-		  ).get('channel');
-}
-
-/**
- * Convert DHMS to seconds, each part is optional except seconds
- *
- * @param {number[]} parts DHMS numberic parts
- * @returns {number} seconds
- */
-function DHMStoSeconds(parts: number[]) {
-	// seconds
-	if (parts.length === 1) return parts[0];
-	// minutes:seconds
-	else if (parts.length === 2) return parts[0] * 60 + parts[1];
-	// hours:minutes:seconds
-	else if (parts.length === 3) return parts[0] * 60 * 60 + parts[1] * 60 + parts[2];
-	// days:hours:minute:seconds
-	return parts[0] * 60 * 60 * 24 + parts[1] * 60 * 60 + parts[2] * 60 + parts[3];
-}
-
-/**
- * Convert seconds to DHMS
- *
- * @param {number} seconds
- * @returns {string}
- */
-function secondsToDHMS(seconds: number, minimalPlaces = 1) {
-	// TODO - fix this rushed math
-	const days = Math.floor(seconds / 86400);
-	const hours = Math.floor((seconds - days * 86400) / 3600);
-	const minutes = Math.floor((seconds % (60 * 60)) / 60);
-	const parts = [days, hours, minutes, Math.floor(seconds % 60)];
-	while (!parts[0] && parts.length > minimalPlaces) parts.shift();
-	return parts.map(num => num.toString().padStart(2, '0')).join(':');
-}
-
-function generateTwitchTimestamp(seconds: number) {
-	const symbols = ['d', 'h', 'm'];
-	const dhms = Array.from(secondsToDHMS(seconds));
-
-	// 0:1:2:3 -> 0:1:2m3 -> 0:1h2m3 -> 0d1h2m3
-	while (true) {
-		const index = dhms.lastIndexOf(':');
-		if (index === -1) break;
-		dhms[index] = symbols.pop()!;
-	}
-
-	return dhms.join('') + 's';
-}
-
-window.ids = (() => {
-	let userID: string | undefined = undefined;
-	let vid: string | undefined | null = undefined;
-
-	/**
-	 * Get the ID of the page user
-	 *
-	 * @returns {number}
-	 */
-	async function getUserID() {
-		if (userID) return userID;
-
-		// TODO - optimize GQL query
-		return fetch('https://gql.twitch.tv/gql', {
-			headers: {
-				'client-id': 'kimne78kx3ncx6brgo4mv6wki5h1ko',
-			},
-			body: `{"query":"query($login: String!, $skip: Boolean!) {\\n\\t\\t\\t\\tuser(login: $login) {\\n\\t\\t\\t\\t\\tbroadcastSettings {\\n\\t\\t\\t\\t\\t\\tlanguage\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\tcreatedAt\\n\\t\\t\\t\\t\\tdescription\\n\\t\\t\\t\\t\\tdisplayName\\n\\t\\t\\t\\t\\tfollowers {\\n\\t\\t\\t\\t\\t\\ttotalCount\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t\\tlastBroadcast {\\n\\t\\t\\t\\t\\t\\tstartedAt\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\tprimaryTeam {\\n\\t\\t\\t\\t\\t\\tdisplayName\\n\\t\\t\\t\\t\\t\\tname\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\tprofileImageURL(width: 70)\\n\\t\\t\\t\\t\\tprofileViewCount\\n\\t\\t\\t\\t\\tself @skip(if: $skip) {\\n\\t\\t\\t\\t\\t\\tcanFollow\\n\\t\\t\\t\\t\\t\\tfollower {\\n\\t\\t\\t\\t\\t\\t\\tdisableNotifications\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}\\n\\t\\t\\t}","variables":{"login":"${getLoginName()}","skip":false}}`,
-			method: 'POST',
-		})
-			.then(r => r.json())
-			.then(json => {
-				userID = json.data.user.id;
-				log('GQL User ID:', userID);
-				return userID;
-			});
-	}
-
-	/**
-	 * Get ID of video, may not exist if on live page and archive stream does not exist
-	 *
-	 * @param {boolean} promptUser If to prompt the user for the ID if it could not be found
-	 * @returns {string}
-	 */
-	async function getVideoID(promptUser: boolean): Promise<typeof vid> {
-		// Get VID from URL if VOD
-		if (isVOD()) {
-			vid = window.location.href.split('/').slice(-1)[0].split('?')[0];
-			return vid;
-		}
-		if (promptUser && vid === null) {
-			const response = await dialog('prompt', 'Video ID could not be detected, please provide it:');
-			if (!response) return vid;
-			vid = response;
-		}
-		if (vid !== undefined) return vid;
-		// TODO - optimize GQL query
-		return getUserID()
-			.then(uid =>
-				fetch('https://gql.twitch.tv/gql', {
-					headers: {
-						'client-id': 'kimne78kx3ncx6brgo4mv6wki5h1ko',
-					},
-					body: `{"query":"query($id: ID!, $all: Boolean!) {\\n\\t\\t\\t\\t\\tuser(id: $id) {\\n\\t\\t\\t\\t\\t\\tbroadcastSettings {\\n\\t\\t\\t\\t\\t\\t\\tgame {\\n\\t\\t\\t\\t\\t\\t\\t\\tdisplayName\\n\\t\\t\\t\\t\\t\\t\\t\\tname\\n\\t\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t\\ttitle\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\tlogin\\n\\t\\t\\t\\t\\t\\tstream {\\n\\t\\t\\t\\t\\t\\t\\tarchiveVideo @include(if: $all) {\\n\\t\\t\\t\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t\\t\\tcreatedAt\\n\\t\\t\\t\\t\\t\\t\\tid\\n\\t\\t\\t\\t\\t\\t\\ttype\\n\\t\\t\\t\\t\\t\\t\\tviewersCount\\n\\t\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t\\t}\\n\\t\\t\\t\\t}","variables":{"id":"${uid}","all":true}}`,
-					method: 'POST',
-				})
-			)
-			.then(r => r.json())
-			.then(json => {
-				vid = json.data.user.stream.archiveVideo?.id ?? null;
-				log('GQL VOD ID:', vid);
-				return getVideoID(promptUser);
-			});
-	}
-
-	function clearCache() {
-		userID = undefined;
-		vid = undefined;
-	}
-
-	return { getUserID, getVideoID, clearCache };
-})();
-
-/**
- * Track the delay of a promise
- *
- * @param {Promise<T>} promise promise to track delay of
- * @returns {{ delay: number, response: T }}
- */
-async function trackDelay<T>(promise: () => Promise<T>): Promise<{ delay: number; response: T }> {
-	const requested = Date.now();
-	const response = await promise();
-	return { delay: Date.now() - requested, response };
-}
-
-function attachEscapeHandler(action: () => void, check = () => true) {
-	const handler = (e: KeyboardEvent) => {
-		if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes((e.target! as HTMLElement).tagName))
-			return;
-		if (!check()) return;
-
-		// Stop other escape handlers from being triggered
-		e.preventDefault();
-		e.stopImmediatePropagation();
-		e.stopPropagation();
-
-		window.removeEventListener('keydown', handler);
-		return action();
-	};
-	window.addEventListener('keydown', handler);
-	return () => window.removeEventListener('keydown', handler);
-}
-
-interface Chapter {
-	name: string;
-	seconds: number;
-}
-
-class ChapterFormatter {
-	static delim: string = '\n';
-
-	static *serialize(_: Chapter[]): Generator<string> {
-		return [];
-	}
-	static *deserialize(_: string): Generator<Chapter> {
-		return [];
-	}
-	static serializeAll(chapters: Chapter[]) {
-		return Array.from(this.serialize(chapters)).join(this.delim);
-	}
-	static deserializeAll(content: string) {
-		return Array.from(this.deserialize(content));
-	}
-	static serializeSeconds(seconds: number): any {
-		return seconds;
-	}
-	static deserializeSeconds(serializedSeconds: string): number {
-		return Number(serializedSeconds);
-	}
-	static serializeName(name: string) {
-		return name;
-	}
-	static deserializeName(serializedName: string) {
-		return serializedName;
-	}
-}
-
-window.chapterFormatters = {
-	json: class JSONFormatter extends ChapterFormatter {
-		multiline = false;
-		static serializeAll(chapters: Chapter[]) {
-			return JSON.stringify(chapters);
-		}
-		static deserializeAll(content: string) {
-			return JSON.parse(content);
-		}
-	},
-	minimal: class MinimalFormatter extends ChapterFormatter {
-		static delim = '\n';
-		static *serialize(chapters: Chapter[]) {
-			const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
-			for (const chapter of chapters) {
-				const dhms = secondsToDHMS(chapter.seconds, places);
-				yield [dhms, chapter.name].join('\t');
-			}
-		}
-		static *deserialize(content: string) {
-			for (const line of content
-				.trim()
-				.split('\n')
-				.map(line => line.trim())
-				.filter(Boolean)) {
-				const [dhms, ...otherWords] = line.split(/\s/);
-				const seconds = DHMStoSeconds(dhms.split(':').map(Number));
-				const name = otherWords.join(' ');
-				yield { name, seconds };
-			}
-		}
-		static deserializeAll(content: string) {
-			return Array.from(this.deserialize(content));
-		}
-		static serializeSeconds(seconds: number) {
-			return secondsToDHMS(seconds);
-		}
-		static deserializeSeconds(serializedSeconds: string) {
-			return DHMStoSeconds(serializedSeconds.split(':').map(Number));
-		}
-	},
-};
-
-function getUIFormatter() {
-	return window.chapterFormatters[
-		localStorage.getItem('r2_twitch_chapters_ui_formatter') ?? 'minimal'
-	];
-}
-
-async function loadFromLocalstorage() {
-	return JSON.parse(
-		localStorage.getItem('r2_twitch_chapters_' + (await window.ids.getVideoID())) ??
-			'{"formatter": "json", "content": "[]"}'
-	);
-}
-
-async function saveToLocalstorage(formatter: string, chapters: Chapter[]) {
-	localStorage.setItem(
-		'r2_twitch_chapters_' + (await window.ids.getVideoID()),
-		JSON.stringify({
-			formatter,
-			content: window.chapterFormatters[formatter].serializeAll(chapters),
-		})
-	);
-}
 
 // Run uninstall if previously loaded, development only
 window.r2?.then(ret => ret.uninstall());
@@ -528,7 +50,7 @@ window.r2 = (async function main() {
 		log('Waiting for complete document...');
 	}
 
-	const uninstallFuncs = [window.ids.clearCache];
+	const uninstallFuncs = [clearIDsCache];
 	async function uninstall() {
 		log('Uninstalling...');
 		for (const func of uninstallFuncs) await func();
@@ -557,11 +79,11 @@ window.r2 = (async function main() {
 	// Get last segment of URL, which is the video ID
 	const chapters = await (async () => {
 		const { formatter, content } = await loadFromLocalstorage();
-		if (!(formatter in window.chapterFormatters)) {
+		if (!(formatter in FORMATTERS)) {
 			dialog('alert', `Formatter for saved content does not exist: ${formatter}`);
 			return null;
 		}
-		return window.chapterFormatters[formatter].deserializeAll(content) as Chapter[];
+		return FORMATTERS[formatter].deserializeAll(content) as Chapter[];
 	})();
 
 	if (chapters === null) {
@@ -670,7 +192,7 @@ window.r2 = (async function main() {
 			if (!existingList) {
 				list.className = 'r2_chapter_list';
 				list.style.position = 'absolute';
-				list.style.zIndex = (9000 + openDialogs).toString();
+				list.style.zIndex = (9000 + getDialogCount()).toString();
 				list.style.backgroundColor = '#18181b';
 				list.style.padding = '1em';
 				list.style.borderRadius = '1em';
@@ -728,7 +250,7 @@ window.r2 = (async function main() {
 				uninstallFuncs.push(
 					attachEscapeHandler(
 						() => setChapterList(false),
-						() => list.style.zIndex === (9000 + openDialogs).toString()
+						() => list.style.zIndex === (9000 + getDialogCount()).toString()
 					)
 				);
 			}
@@ -830,7 +352,7 @@ window.r2 = (async function main() {
 					share.textContent = 'Share';
 					share.addEventListener('click', async e => {
 						navigator.clipboard.writeText(
-							`https://twitch.tv/videos/${await window.ids.getVideoID()}?t=${generateTwitchTimestamp(
+							`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(
 								getElementChapter(e)!.seconds
 							)}`
 						);
@@ -876,8 +398,7 @@ window.r2 = (async function main() {
 		const setChapterList = (render: boolean) => {
 			rendering = render;
 
-			if (render) openDialogs++;
-			else openDialogs--;
+			changeDialogCount(Number(render));
 
 			renderChapterList();
 		};
@@ -945,7 +466,7 @@ window.r2 = (async function main() {
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Chapter:', () => [
 			formatter.multiline ? 'textarea' : 'input',
-			formatter.serializeAll(chapter.name)[0],
+			formatter.serializeAll([chapter])[0],
 		]);
 		if (response === null) return;
 
@@ -960,7 +481,7 @@ window.r2 = (async function main() {
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Serialized Chapters', () => [
 			'textarea',
-			formatter.serializeAll(chapters),
+			formatter.serializeAll(chapters!),
 		]);
 		if (response === null) return;
 		chapters!.splice(0, chapters!.length, ...formatter.deserializeAll(response));
@@ -1181,9 +702,7 @@ window.r2 = (async function main() {
 		chapters.push({ seconds, name });
 		if (isLive())
 			navigator.clipboard.writeText(
-				`https://twitch.tv/videos/${await window.ids.getVideoID()}?t=${generateTwitchTimestamp(
-					seconds
-				)}`
+				`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(seconds)}`
 			);
 		return handleChapterUpdate();
 	};
