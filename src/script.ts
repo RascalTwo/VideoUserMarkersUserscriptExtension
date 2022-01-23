@@ -3,7 +3,10 @@
 // @version  1
 // @grant    none
 // @match    https://www.twitch.tv/*
+// @require  https://requirejs.org/docs/release/2.3.6/comments/require.js
 // ==/UserScript==
+
+import { log } from './helpers';
 
 declare global {
 	interface Window {
@@ -15,9 +18,6 @@ declare global {
 	}
 }
 
-function log(...args: any) {
-	console.log('[R2 Twitch Chapters]', ...args)
-}
 
 log('Script Started');
 
@@ -372,14 +372,13 @@ window.ids = (() => {
  * @param {Promise<T>} promise promise to track delay of
  * @returns {{ delay: number, response: T }}
  */
-async function trackDelay<T>(promise: () => Promise<T>): Promise<{ delay: number, response: T}> {
+async function trackDelay<T>(promise: () => Promise<T>): Promise<{ delay: number, response: T }> {
 	const requested = Date.now();
 	const response = await promise();
 	return { delay: Date.now() - requested, response };
 }
 
 
-const a = Promise.resolve(1)
 function attachEscapeHandler(action: () => void, check = () => true) {
 	const handler = (e: KeyboardEvent) => {
 		if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes((e.target! as HTMLElement).tagName)) return;
@@ -472,9 +471,6 @@ window.chapterFormatters = {
 
 function getUIFormatter() {
 	return window.chapterFormatters[localStorage.getItem('r2_twitch_chapters_ui_formatter') ?? 'minimal'];
-}
-function setUIFormatter(formatter: string) {
-	return localStorage.setItem('r2_twitch_chapters_ui_formatter', formatter);
 }
 
 async function loadFromLocalstorage() {
@@ -602,7 +598,7 @@ window.r2 = (async function main() {
 		return editChapterName(chapter);
 	}
 
-	function deleteChapter(chapter: Chapter, e: Event) {
+	function deleteChapter(chapter: Chapter) {
 		const index = chapters!.findIndex(c => c.seconds === chapter.seconds)
 		chapters!.splice(index, 1);
 		return handleChapterUpdate();
@@ -775,7 +771,7 @@ window.r2 = (async function main() {
 					deleteBtn.classList.add('r2_chapter_delete');
 					deleteBtn.style.float = 'right';
 					deleteBtn.textContent = 'Delete'
-					deleteBtn.addEventListener('click', e => deleteChapter(getElementChapter(e)!, e))
+					deleteBtn.addEventListener('click', e => deleteChapter(getElementChapter(e)!))
 					li.appendChild(deleteBtn);
 				}
 
@@ -1126,4 +1122,4 @@ window.r2 = (async function main() {
 })();
 log('Script Ended');
 
-export {};
+export { };
