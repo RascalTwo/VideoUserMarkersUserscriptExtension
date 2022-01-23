@@ -32,17 +32,18 @@ import type { Chapter } from './types';
 
 declare global {
 	interface Window {
-		r2: Promise<{
+		r2_twitch_chapters?: {
 			uninstall: () => Promise<void>;
-		}>;
+		};
 	}
 }
 
 log('Script Started');
 
-// Run uninstall if previously loaded, development only
-window.r2?.then(ret => ret.uninstall());
-window.r2 = (async function main() {
+(async function main() {
+	// Run uninstall if previously loaded, development only
+	await window.r2_twitch_chapters?.uninstall();
+
 	log('Setup Started');
 
 	while (document.readyState !== 'complete') {
@@ -56,6 +57,7 @@ window.r2 = (async function main() {
 		for (const func of uninstallFuncs) await func();
 		log('Uninstalled');
 	}
+	window.r2_twitch_chapters = { uninstall };
 
 	function reinstallOnChange(reinstall = () => false) {
 		const url = window.location.href;
@@ -71,7 +73,7 @@ window.r2 = (async function main() {
 	if (!isVOD() && !isLive()) {
 		log(`[R2 Twitch Chapters] Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
 		uninstallFuncs.push(reinstallOnChange(() => isVOD() || isLive()));
-		return { uninstall };
+		return;
 	}
 
 	uninstallFuncs.push(reinstallOnChange());
@@ -88,7 +90,7 @@ window.r2 = (async function main() {
 
 	if (chapters === null) {
 		log('Error loading chapters, abandoning');
-		return { uninstall };
+		return
 	}
 
 	while (true) {
@@ -752,8 +754,8 @@ window.r2 = (async function main() {
 	if (chapters.length) await handleChapterUpdate();
 
 	log('Setup Ended');
-	return { uninstall };
 })();
+
 log('Script Ended');
 
 export {};
