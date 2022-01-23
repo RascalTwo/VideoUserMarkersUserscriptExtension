@@ -17,6 +17,7 @@ import {
 	trackDelay,
 	loadFromLocalstorage,
 	saveToLocalstorage,
+	createUninstaller,
 } from './helpers';
 import {
 	clearIDsCache,
@@ -51,32 +52,16 @@ log('Script Started');
 		log('Waiting for complete document...');
 	}
 
-	const uninstallFuncs = [clearIDsCache];
-	async function uninstall() {
-		log('Uninstalling...');
-		for (const func of uninstallFuncs) await func();
-		log('Uninstalled');
-	}
-	window.r2_twitch_chapters = { uninstall };
-
-	function reinstallOnChange(reinstall = () => false) {
-		const url = window.location.href;
-		const interval = setInterval(() => {
-			if (reinstall() || window.location.href !== url) {
-				clearInterval(interval);
-				uninstall().then(main);
-			}
-		}, 1000);
-		return () => clearInterval(interval);
-	}
-
-	if (!isVOD() && !isLive()) {
+	const shouldActivate = isVOD() || isLive();
+	const addUninstallationStep = createUninstaller(
+		main,
+		shouldActivate ? undefined : () => isVOD() || isLive()
+	);
+	addUninstallationStep(clearIDsCache);
+	if (!shouldActivate) {
 		log(`[R2 Twitch Chapters] Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
-		uninstallFuncs.push(reinstallOnChange(() => isVOD() || isLive()));
 		return;
 	}
-
-	uninstallFuncs.push(reinstallOnChange());
 
 	// Get last segment of URL, which is the video ID
 	const chapters = await (async () => {
@@ -90,7 +75,7 @@ log('Script Started');
 
 	if (chapters === null) {
 		log('Error loading chapters, abandoning');
-		return
+		return;
 	}
 
 	while (true) {
@@ -236,7 +221,7 @@ log('Script Started');
 				document.body.addEventListener('mousemove', handleMouseMove);
 				list.appendChild(header);
 
-				uninstallFuncs.push(() => {
+				addUninstallationStep(() => {
 					document.body.removeEventListener('mousemove', handleMouseMove);
 					document.body.removeEventListener('mouseup', handleMouseUp);
 				});
@@ -249,7 +234,7 @@ log('Script Started');
 
 				header.appendChild(closeButton);
 
-				uninstallFuncs.push(
+				addUninstallationStep(
 					attachEscapeHandler(
 						() => setChapterList(false),
 						() => list.style.zIndex === (9000 + getDialogCount()).toString()
@@ -432,7 +417,7 @@ log('Script Started');
 		};
 	})();
 
-	uninstallFuncs.push(uninstallChapterList);
+	addUninstallationStep(uninstallChapterList);
 
 	async function editChapterSeconds(chapter: Chapter) {
 		const formatter = getUIFormatter();
@@ -491,7 +476,7 @@ log('Script Started');
 	}
 
 	// Functions to call to remove script from site
-	uninstallFuncs.push(removeChapterList);
+	addUninstallationStep(removeChapterList);
 	/**
 	 * Get the current time in seconds of the player
 	 *
@@ -504,7 +489,7 @@ log('Script Started');
 	];
 
 	if (isVOD()) {
-		uninstallFuncs.push(
+		addUninstallationStep(
 			(() => {
 				const chapterName = document.createElement('anchor') as HTMLAnchorElement;
 				chapterName.href = '#';
@@ -546,7 +531,7 @@ log('Script Started');
 			})()
 		);
 
-		uninstallFuncs.push(
+		addUninstallationStep(
 			(() => {
 				const xToSeconds = (x: number) => {
 					const rect = bar.getBoundingClientRect();
@@ -587,7 +572,7 @@ log('Script Started');
 			})()
 		);
 
-		uninstallFuncs.push(
+		addUninstallationStep(
 			(() => {
 				const handleWheel = async (e: WheelEvent) => {
 					e.preventDefault();
@@ -636,7 +621,7 @@ log('Script Started');
 					.textContent!.split(':')
 					.map(Number)
 			);
-		uninstallFuncs.push(removeDOMChapters);
+		addUninstallationStep(removeDOMChapters);
 	} else if (isLive()) {
 		if (isAlternatePlayer()) {
 			// m_Player.getPlaybackPositionBroadcast() on AlternatePlayer
@@ -743,11 +728,11 @@ log('Script Started');
 		if (e.key === 'b') addChapterHere();
 	};
 	window.addEventListener('keydown', keydownHandler);
-	uninstallFuncs.push(() => window.removeEventListener('keydown', keydownHandler));
+	addUninstallationStep(() => window.removeEventListener('keydown', keydownHandler));
 
 	const resizeObserver = new ResizeObserver(handleChapterUpdate);
 	resizeObserver.observe(document.querySelector<HTMLVideoElement>('video')!);
-	uninstallFuncs.push(() =>
+	addUninstallationStep(() =>
 		resizeObserver.unobserve(document.querySelector<HTMLVideoElement>('video')!)
 	);
 

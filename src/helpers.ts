@@ -140,3 +140,31 @@ export async function saveToLocalstorage(formatter: keyof typeof FORMATTERS, cha
 		})
 	);
 }
+
+export function createUninstaller(reinstall: () => void, shouldReinstall?: () => boolean) {
+	const uninstallFuncs: (() => Promise<void> | void)[] = [
+		(function reinstallOnChange(shouldReinstall = () => false) {
+			const url = window.location.href;
+			const interval = setInterval(() => {
+				if (shouldReinstall() || window.location.href !== url) {
+					clearInterval(interval);
+					uninstall().then(reinstall);
+				}
+			}, 1000);
+			return () => clearInterval(interval);
+		})(shouldReinstall),
+	];
+
+	async function uninstall() {
+		log('Uninstalling...');
+		for (const func of uninstallFuncs) await func();
+		log('Uninstalled');
+	}
+	window.r2_twitch_chapters = { uninstall };
+
+	function addUninstallationStep(step: () => Promise<void> | void) {
+		uninstallFuncs.push(step);
+	}
+
+	return addUninstallationStep;
+}
