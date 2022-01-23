@@ -4,7 +4,18 @@
 // @grant    none
 // @match    https://www.twitch.tv/*
 // ==/UserScript==
-function log(...args) {
+
+declare global {
+	interface Window {
+		ids: any
+		chapterFormatters: any
+		r2: Promise<{
+			uninstall: () => Promise<void>;
+		}>
+	}
+}
+
+function log(...args: any) {
 	console.log('[R2 Twitch Chapters]', ...args)
 }
 
@@ -45,7 +56,7 @@ function getButtonClass() {
  *
  * @param {number} ms
  */
-function delay(ms) {
+function delay(ms: number) {
 	return new Promise(r => setTimeout(r, ms))
 };
 
@@ -58,7 +69,7 @@ let openDialogs = 0;
  * @param {string} message
  * @param {(form: HTMLFormElement) => any} sideEffect
  */
-async function dialog(type, message, sideEffect) {
+async function dialog(type: 'alert' | 'prompt' | 'choose', message: string, sideEffect?: (form: HTMLFormElement) => any): Promise<any> {
 	return new Promise(resolve => {
 		openDialogs++;
 
@@ -66,7 +77,7 @@ async function dialog(type, message, sideEffect) {
 
 		const form = document.createElement('form');
 		form.style.position = 'absolute';
-		form.style.zIndex = 9000 + openDialogs;
+		form.style.zIndex = (9000 + openDialogs).toString();
 		form.style.top = '50%';
 		form.style.left = '50%';
 		form.style.transform = 'translate(-50%, -50%)';
@@ -77,9 +88,9 @@ async function dialog(type, message, sideEffect) {
 		form.style.display = 'flex'
 		form.style.flexDirection = 'column'
 		form.textContent = message;
-		const handleSubmit = e => {
+		const handleSubmit = (e?: Event) => {
 			e?.preventDefault();
-			const response = canceled ? null : generateResponse();
+			const response = canceled ? null : generateResponse(form);
 			form.remove();
 			openDialogs--;
 			removeEscapeHandler();
@@ -87,12 +98,12 @@ async function dialog(type, message, sideEffect) {
 		}
 		form.addEventListener('submit', handleSubmit)
 
-		const [generateResponse, pre, post, afterCreated] = {
+		const [generateResponse, pre, post, afterCreated]: Function[] = {
 			'alert': () => [
 				() => true,
-				() => form.querySelector('button[type="submit"]').focus(),
+				() => (form.querySelector('button[type="submit"]')! as HTMLElement).focus(),
 				NOOP,
-				sideEffect
+				sideEffect!
 			],
 			'prompt': () => {
 				const [type, value] = sideEffect?.(form) ?? ['input', ''];
@@ -101,7 +112,7 @@ async function dialog(type, message, sideEffect) {
 				if (type === 'textarea') input.setAttribute('rows', 10);
 
 				// TODO - trim this down to just the required handlers/preventions
-				const overwriteAlternateHandlers = e => {
+				const overwriteAlternateHandlers = (e: KeyboardEvent) => {
 					e.stopImmediatePropagation();
 					e.stopPropagation();
 					if (e.key === 'Enter' && e.ctrlKey) handleSubmit();
@@ -115,7 +126,7 @@ async function dialog(type, message, sideEffect) {
 					() => input.value.trim(),
 					() => input.focus(),
 					() => {
-						const lines = input.value.split('\n')
+						const lines: string[] = input.value.split('\n')
 						const longestLine = Math.max(...lines.map(line => line.length))
 						if (!longestLine) return;
 						input.style.width = Math.max(input.offsetWidth, longestLine * getCHWidth()) + 'px';
@@ -124,7 +135,7 @@ async function dialog(type, message, sideEffect) {
 				]
 			},
 			'choose': () => {
-				form.appendChild(Object.entries(sideEffect(form)).reduce((fragment, [key, value]) => {
+				form.appendChild(Object.entries(sideEffect!(form)).reduce((fragment, [key, value]) => {
 					const button = document.createElement('button');
 					button.className = getButtonClass();
 					button.textContent = key;
@@ -135,10 +146,10 @@ async function dialog(type, message, sideEffect) {
 					return fragment;
 				}, document.createDocumentFragment()));
 				return [
-					() => JSON.parse(form.dataset.value),
+					() => JSON.parse(form.dataset.value!),
 					() => {
-						form.querySelector('button[type="submit"]').remove()
-						form.querySelector('button').focus()
+						form.querySelector('button[type="submit"]')!.remove()
+						form.querySelector('button')!.focus()
 					},
 					NOOP,
 					NOOP
@@ -147,30 +158,30 @@ async function dialog(type, message, sideEffect) {
 		}[type]();
 
 		const actions = document.createElement('div');
-		actions.style.flex = 1
+		actions.style.flex = '1'
 		actions.style.display = 'flex';
 		const submit = document.createElement('button');
 		submit.className = getButtonClass();
-		submit.style.flex = 1
+		submit.style.flex = '1'
 		submit.textContent = 'OK'
 		submit.type = 'submit';
 		actions.appendChild(submit);
 
 		const cancel = document.createElement('button');
 		cancel.className = getButtonClass();
-		cancel.style.flex = 1
+		cancel.style.flex = '1'
 		cancel.textContent = 'Cancel'
 		cancel.addEventListener('click', () => canceled = true)
 		actions.appendChild(cancel);
 		form.appendChild(actions)
 
 		document.body.appendChild(form);
-		const removeEscapeHandler = attachEscapeHandler(handleSubmit, () => form.style.zIndex == 9000 + openDialogs);
+		const removeEscapeHandler = attachEscapeHandler(handleSubmit, () => form.style.zIndex === (9000 + openDialogs).toString());
 
 		setTimeout(() => {
-			pre();
+			pre(form);
 			afterCreated?.(form)
-			post();
+			post(form);
 		}, 250);
 	});
 };
@@ -181,12 +192,12 @@ async function dialog(type, message, sideEffect) {
  *
  * @param  {...any} queries queries of nodes to click
  */
-async function clickNodes(...queries) {
+async function clickNodes(...queries: string[]) {
 	for (const query of queries) {
 		while (true) {
 			const node = document.querySelector(query)
 			if (node) {
-				node.click();
+				(node as HTMLElement).click();
 				break;
 			} else {
 				await delay(100);
@@ -212,6 +223,7 @@ function isVOD() {
 function isLive() {
 	if (isAlternatePlayer()) return true;
 	const parts = window.location.pathname.split('/').slice(1)
+	// @ts-ignore
 	if (!parts.length === 1 && !!parts[0]) return false;
 	return !!document.querySelector('.user-avatar-card__live');
 }
@@ -238,7 +250,7 @@ function getLoginName() {
 			// URL ends with loginName
 			? window.location.pathname.split('/')[1]
 			// URL channel=loginName exists in `og:video` metadata
-			: new URLSearchParams(document.querySelector('meta[property="og:video"]').getAttribute('content').split('?').slice(1).join('?')).get('channel')
+			: new URLSearchParams(document.querySelector('meta[property="og:video"]')!.getAttribute('content')!.split('?').slice(1).join('?')).get('channel')
 };
 
 /**
@@ -247,7 +259,7 @@ function getLoginName() {
  * @param {number[]} parts DHMS numberic parts
  * @returns {number} seconds
  */
-function DHMStoSeconds(parts) {
+function DHMStoSeconds(parts: number[]) {
 	// seconds
 	if (parts.length === 1) return parts[0];
 	// minutes:seconds
@@ -264,17 +276,17 @@ function DHMStoSeconds(parts) {
  * @param {number} seconds
  * @returns {string}
  */
-function secondsToDHMS(seconds, minimalPlaces = 1) {
+function secondsToDHMS(seconds: number, minimalPlaces = 1) {
 	// TODO - fix this rushed math
-	const days = parseInt(seconds / 86400)
-	const hours = parseInt((seconds - (days * 86400)) / 3600)
-	const minutes = parseInt((seconds % (60 * 60)) / 60)
-	const parts = [days, hours, minutes, parseInt(seconds % 60)]
+	const days = Math.floor(seconds / 86400)
+	const hours = Math.floor((seconds - (days * 86400)) / 3600)
+	const minutes = Math.floor((seconds % (60 * 60)) / 60)
+	const parts = [days, hours, minutes, Math.floor(seconds % 60)]
 	while (!parts[0] && parts.length > minimalPlaces) parts.shift()
 	return parts.map(num => num.toString().padStart(2, '0')).join(':')
 }
 
-function generateTwitchTimestamp(seconds) {
+function generateTwitchTimestamp(seconds: number) {
 	const symbols = ['d', 'h', 'm']
 	const dhms = Array.from(secondsToDHMS(seconds));
 
@@ -282,15 +294,15 @@ function generateTwitchTimestamp(seconds) {
 	while (true) {
 		const index = dhms.lastIndexOf(':');
 		if (index === -1) break;
-		dhms[index] = symbols.pop();
+		dhms[index] = symbols.pop()!;
 	}
 
 	return dhms.join('') + 's';
 }
 
-ids = (() => {
-	let userID = undefined;
-	let vid = undefined;
+window.ids = (() => {
+	let userID: string | undefined = undefined;
+	let vid: string | undefined | null = undefined;
 
 	/**
 	 * Get the ID of the page user
@@ -320,7 +332,7 @@ ids = (() => {
 	 * @param {boolean} promptUser If to prompt the user for the ID if it could not be found
 	 * @returns {string}
 	 */
-	async function getVideoID(promptUser) {
+	async function getVideoID(promptUser: boolean): Promise<typeof vid> {
 		// Get VID from URL if VOD
 		if (isVOD()) {
 			vid = window.location.href.split('/').slice(-1)[0].split('?')[0];
@@ -328,7 +340,7 @@ ids = (() => {
 		}
 		if (promptUser && vid === null) {
 			const response = await dialog('prompt', 'Video ID could not be detected, please provide it:');
-			if (!response) return;
+			if (!response) return vid;
 			vid = response;
 		}
 		if (vid !== undefined) return vid;
@@ -360,15 +372,17 @@ ids = (() => {
  * @param {Promise<T>} promise promise to track delay of
  * @returns {{ delay: number, response: T }}
  */
-async function trackDelay(promise) {
+async function trackDelay<T>(promise: () => Promise<T>): Promise<{ delay: number, response: T}> {
 	const requested = Date.now();
 	const response = await promise();
 	return { delay: Date.now() - requested, response };
 }
 
-function attachEscapeHandler(action, check = () => true) {
-	const handler = e => {
-		if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+
+const a = Promise.resolve(1)
+function attachEscapeHandler(action: () => void, check = () => true) {
+	const handler = (e: KeyboardEvent) => {
+		if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes((e.target! as HTMLElement).tagName)) return;
 		if (!check()) return;
 
 		// Stop other escape handlers from being triggered
@@ -383,52 +397,60 @@ function attachEscapeHandler(action, check = () => true) {
 	return () => window.removeEventListener('keydown', handler);
 }
 
+interface Chapter {
+	name: string
+	seconds: number
+}
+
 class ChapterFormatter {
-	static *serialize(content) {
+	static delim: string = '\n'
+
+	static *serialize(_: Chapter[]): Generator<string> {
 		return []
 	}
-	static *deserialize(chapters) {
-		return ''
+	static *deserialize(_: string): Generator<Chapter> {
+		return []
 	}
-	static serializeAll(content) {
-		return Array.from(this.serialize(content))
+	static serializeAll(chapters: Chapter[]) {
+		return Array.from(this.serialize(chapters)).join(this.delim)
 	}
-	static deserializeAll(chapters) {
-		return Array.from(this.deserialize(chapters))
+	static deserializeAll(content: string) {
+		return Array.from(this.deserialize(content))
 	}
-	static serializeSeconds(seconds) {
+	static serializeSeconds(seconds: number): any {
 		return seconds;
 	}
-	static deserializeSeconds(serializedSeconds) {
-		return serializedSeconds;
+	static deserializeSeconds(serializedSeconds: string): number {
+		return Number(serializedSeconds);
 	}
-	static serializeName(name) {
+	static serializeName(name: string) {
 		return name;
 	}
-	static deserializeName(serializedName) {
+	static deserializeName(serializedName: string) {
 		return serializedName;
 	}
 }
 
-chapterFormatters = {
+window.chapterFormatters = {
 	json: class JSONFormatter extends ChapterFormatter {
 		multiline = false;
-		static serializeAll(chapters) {
+		static serializeAll(chapters: Chapter[]) {
 			return JSON.stringify(chapters);
 		}
-		static deserializeAll(content) {
+		static deserializeAll(content: string) {
 			return JSON.parse(content);
 		}
 	},
 	minimal: class MinimalFormatter extends ChapterFormatter {
-		static * serialize(chapters) {
+		static delim = '\n';
+		static * serialize(chapters: Chapter[]) {
 			const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
 			for (const chapter of chapters) {
 				const dhms = secondsToDHMS(chapter.seconds, places)
 				yield [dhms, chapter.name].join('\t');
 			}
 		}
-		static * deserialize(content) {
+		static * deserialize(content: string) {
 			for (const line of content.trim().split('\n').map(line => line.trim()).filter(Boolean)) {
 				const [dhms, ...otherWords] = line.split(/\s/);
 				const seconds = DHMStoSeconds(dhms.split(':').map(Number));
@@ -436,43 +458,40 @@ chapterFormatters = {
 				yield { name, seconds }
 			}
 		}
-		static serializeAll(chapters) {
-			return Array.from(this.serialize(chapters)).join('\n');
-		}
-		static deserializeAll(content) {
+		static deserializeAll(content: string) {
 			return Array.from(this.deserialize(content));
 		}
-		static serializeSeconds(seconds) {
+		static serializeSeconds(seconds: number) {
 			return secondsToDHMS(seconds);
 		}
-		static deserializeSeconds(serializedSeconds) {
+		static deserializeSeconds(serializedSeconds: string) {
 			return DHMStoSeconds(serializedSeconds.split(':').map(Number));
 		}
 	}
 }
 
 function getUIFormatter() {
-	return chapterFormatters[localStorage.getItem('r2_twitch_chapters_ui_formatter') ?? 'minimal'];
+	return window.chapterFormatters[localStorage.getItem('r2_twitch_chapters_ui_formatter') ?? 'minimal'];
 }
-function setUIFormatter(formatter) {
+function setUIFormatter(formatter: string) {
 	return localStorage.setItem('r2_twitch_chapters_ui_formatter', formatter);
 }
 
 async function loadFromLocalstorage() {
-	return JSON.parse(localStorage.getItem('r2_twitch_chapters_' + await ids.getVideoID()) ?? '{"formatter": "json", "content": "[]"}')
+	return JSON.parse(localStorage.getItem('r2_twitch_chapters_' + await window.ids.getVideoID()) ?? '{"formatter": "json", "content": "[]"}')
 }
 
-async function saveToLocalstorage(formatter, chapters) {
-	localStorage.setItem('r2_twitch_chapters_' + await ids.getVideoID(), JSON.stringify({
+async function saveToLocalstorage(formatter: string, chapters: Chapter[]) {
+	localStorage.setItem('r2_twitch_chapters_' + await window.ids.getVideoID(), JSON.stringify({
 		formatter,
-		content: chapterFormatters[formatter].serializeAll(chapters)
+		content: window.chapterFormatters[formatter].serializeAll(chapters)
 	}));
 }
 
 
 // Run uninstall if previously loaded, development only
-window?.r2?.then(ret => ret.uninstall());
-r2 = (async function main() {
+window.r2?.then(ret => ret.uninstall());
+window.r2 = (async function main() {
 	log('Setup Started');
 
 	while (document.readyState !== 'complete') {
@@ -480,7 +499,7 @@ r2 = (async function main() {
 		log('Waiting for complete document...');
 	}
 
-	const uninstallFuncs = [ids.clearCache];
+	const uninstallFuncs = [window.ids.clearCache];
 	async function uninstall() {
 		log('Uninstalling...');
 		for (const func of uninstallFuncs) await func()
@@ -501,7 +520,7 @@ r2 = (async function main() {
 	if (!isVOD() && !isLive()) {
 		log(`[R2 Twitch Chapters] Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
 		uninstallFuncs.push(reinstallOnChange(() => isVOD() || isLive()));
-		return { chapters: [], uninstall }
+		return { uninstall }
 	}
 
 	uninstallFuncs.push(reinstallOnChange());
@@ -509,14 +528,17 @@ r2 = (async function main() {
 	// Get last segment of URL, which is the video ID
 	const chapters = await (async () => {
 		const { formatter, content } = await loadFromLocalstorage();
-		if (!(formatter in chapterFormatters)) {
+		if (!(formatter in window.chapterFormatters)) {
 			dialog('alert', `Formatter for saved content does not exist: ${formatter}`)
 			return null;
 		}
-		return chapterFormatters[formatter].deserializeAll(content);
+		return window.chapterFormatters[formatter].deserializeAll(content) as Chapter[];
 	})();
 
-	if (chapters === null) return log('Error loading chapters, abandoning');
+	if (chapters === null) {
+		log('Error loading chapters, abandoning');
+		return { uninstall };
+	}
 
 	while (true) {
 		await delay(1000);
@@ -527,8 +549,8 @@ r2 = (async function main() {
 		log('Waiting for player...');
 	}
 
-	function findChapter(seconds) {
-		return chapters.find(chapter => chapter.seconds === seconds);
+	function findChapter(seconds: number) {
+		return chapters!.find(chapter => chapter.seconds === seconds);
 	}
 
 	/**
@@ -537,14 +559,14 @@ r2 = (async function main() {
 	 * @param {number} seconds
 	 * @returns {{ x: number, y: number, minX: number, maxX: number }}
 	 */
-	function getTimeXY(seconds) {
-		const bar = document.querySelector('.seekbar-bar');
+	function getTimeXY(seconds: number) {
+		const bar = document.querySelector('.seekbar-bar')!;
 
 		const rect = bar.getBoundingClientRect();
 		const minX = rect.left;
 		const maxX = rect.right;
 
-		const duration = Number(document.querySelector('[data-a-target="player-seekbar-duration"]').dataset.aValue);
+		const duration = Number(document.querySelector<HTMLElement>('[data-a-target="player-seekbar-duration"]')!.dataset.aValue);
 		const percentage = seconds / duration;
 		const x = ((maxX - minX) * percentage);
 		const y = (rect.bottom + rect.top) / 2
@@ -556,19 +578,19 @@ r2 = (async function main() {
 	 *
 	 * @param {number} seconds
 	 */
-	async function setTime(seconds) {
-		const bar = document.querySelector('[data-a-target="player-seekbar"]');
-		Object.entries(bar.parentNode).find(([key]) => key.startsWith('__reactEventHandlers'))[1].children[2].props.onThumbLocationChange(seconds)
+	async function setTime(seconds: number) {
+		const bar = document.querySelector<HTMLElement>('[data-a-target="player-seekbar"]')!;
+		Object.entries(bar.parentNode!).find(([key]) => key.startsWith('__reactEventHandlers'))![1].children[2].props.onThumbLocationChange(seconds)
 	}
 
-	function seekToChapter(chapter, e) {
+	function seekToChapter(chapter: Chapter, e: Event) {
 		// Stop native seekbar behavior
 		e?.stopImmediatePropagation();
 		e?.stopPropagation();
 		return setTime(chapter.seconds);
 	}
 
-	function startEditingChapter(chapter, seconds, name, e) {
+	function startEditingChapter(chapter: Chapter, seconds: boolean, name: boolean, e: Event) {
 		// Disable context menu
 		e?.preventDefault();
 		// Stop native seekbar behavior
@@ -580,13 +602,13 @@ r2 = (async function main() {
 		return editChapterName(chapter);
 	}
 
-	function deleteChapter(chapter, e) {
-		const index = chapters.findIndex(c => c.seconds === chapter.seconds)
-		chapters.splice(index, 1);
+	function deleteChapter(chapter: Chapter, e: Event) {
+		const index = chapters!.findIndex(c => c.seconds === chapter.seconds)
+		chapters!.splice(index, 1);
 		return handleChapterUpdate();
 	}
 
-	function adjustChapterSeconds(chapter, change) {
+	function adjustChapterSeconds(chapter: Chapter, change: number) {
 		chapter.seconds += change;
 		return handleChapterUpdate().then(() => chapter);
 	}
@@ -595,17 +617,17 @@ r2 = (async function main() {
 		let rendering = false;
 		let last = { x: 0, y: 0 };
 
-		const getCurrentChapterLI = (list) => getCurrentTimeLive().then(now => list.querySelectorAll('li')[(chapters.map((c, i) => [c, i]).filter(([c]) => c.seconds <= now).slice(-1)[0] ?? [null, -1])[1]]);
+		const getCurrentChapterLI = (list: HTMLUListElement) => getCurrentTimeLive().then(now => list.querySelectorAll('li')[(chapters!.map((c, i) => [c, i] as [Chapter, number]).filter(([c]) => c.seconds <= now).slice(-1)[0] ?? [null, -1])[1]]);
 
 		function renderChapterList() {
 			if (!rendering) return removeChapterList();
 
-			const existingList = document.querySelector('.r2_chapter_list');
-			list = existingList || document.createElement('ul');
+			const existingList = document.querySelector<HTMLUListElement>('.r2_chapter_list');
+			const list = existingList || document.createElement('ul') as HTMLUListElement;
 			if (!existingList) {
 				list.className = 'r2_chapter_list'
 				list.style.position = 'absolute'
-				list.style.zIndex = 9000 + openDialogs;
+				list.style.zIndex = (9000 + openDialogs).toString();
 				list.style.backgroundColor = '#18181b'
 				list.style.padding = '1em';
 				list.style.borderRadius = '1em';
@@ -622,7 +644,7 @@ r2 = (async function main() {
 
 				const header = document.createElement('h4');
 				header.textContent = 'Chapter List'
-				header.backgroundColor = '#08080b'
+				header.style.backgroundColor = '#08080b'
 				header.style.userSelect = 'none';
 				header.style.padding = '0'
 				header.style.margin = '0'
@@ -637,7 +659,7 @@ r2 = (async function main() {
 				}
 				document.body.addEventListener('mouseup', handleMouseUp);
 
-				const handleMouseMove = (e) => {
+				const handleMouseMove = (e: MouseEvent) => {
 					if (!dragging) return;
 
 					list.style.top = (list.offsetTop - (last.y - e.clientY)) + 'px'
@@ -660,21 +682,21 @@ r2 = (async function main() {
 
 				header.appendChild(closeButton);
 
-				uninstallFuncs.push(attachEscapeHandler(() => setChapterList(false), () => list.style.zIndex == 9000 + openDialogs))
+				uninstallFuncs.push(attachEscapeHandler(() => setChapterList(false), () => list.style.zIndex === (9000 + openDialogs).toString()))
 			}
 
 
-			chapters.sort((a, b) => a.seconds - b.seconds);
-			const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
+			chapters!.sort((a, b) => a.seconds - b.seconds);
+			const places = secondsToDHMS(chapters![chapters!.length - 1]?.seconds ?? 0).split(':').length;
 
-			function getElementChapter(e) {
-				return findChapter(Number(e.target.closest('[data-seconds]').dataset.seconds))
+			function getElementChapter(e: Event) {
+				return findChapter(Number((e.target! as HTMLElement).closest<HTMLElement>('[data-seconds]')!.dataset.seconds))
 			}
 
-			for (const [i, chapter] of chapters.entries()) {
+			for (const [i, chapter] of chapters!.entries()) {
 				const existingLi = list.querySelectorAll('li')[i]
 				const li = existingLi || document.createElement('li')
-				li.dataset.seconds = chapter.seconds;
+				li.dataset.seconds = chapter.seconds.toString();
 				if (!existingLi) {
 					li.style.display = 'flex';
 					li.style.alignItems = 'center';
@@ -689,31 +711,31 @@ r2 = (async function main() {
 						// Stop native scrolling
 						e.preventDefault();
 
-						return adjustChapterSeconds(getElementChapter(e), Math.min(Math.max(e.deltaY, -1), 1))
-							.then(chapter => isVOD() && setTime(chapter.seconds));
+						return adjustChapterSeconds(getElementChapter(e)!, Math.min(Math.max(e.deltaY, -1), 1))
+							.then(chapter => isVOD() ? setTime(chapter.seconds) : undefined);
 					})
 
 					const decrease = document.createElement('button');
 					decrease.className = getButtonClass();
 					decrease.textContent = '-';
 					decrease.title = 'Subtract 1 second';
-					decrease.addEventListener('click', (e) => adjustChapterSeconds(getElementChapter(e), -1).then(chapter => isVOD() && setTime(chapter.seconds)));
+					decrease.addEventListener('click', (e) => adjustChapterSeconds(getElementChapter(e)!, -1).then(chapter => isVOD() ? setTime(chapter.seconds) : undefined));
 					time.appendChild(decrease);
 
 					const timeText = document.createElement('span');
 					timeText.textContent = timeContent;
 					if (isVOD()) {
 						timeText.style.cursor = 'pointer';
-						timeText.addEventListener('click', e => seekToChapter(getElementChapter(e), e))
+						timeText.addEventListener('click', e => seekToChapter(getElementChapter(e)!, e))
 					}
-					timeText.addEventListener('contextmenu', e => startEditingChapter(getElementChapter(e), true, false, e))
+					timeText.addEventListener('contextmenu', e => startEditingChapter(getElementChapter(e)!, true, false, e))
 					time.appendChild(timeText);
 
 					const increase = document.createElement('button');
 					increase.className = getButtonClass();
 					increase.textContent = '+';
 					increase.title = 'Add 1 second';
-					increase.addEventListener('click', e => adjustChapterSeconds(getElementChapter(e), 1).then(chapter => isVOD() && setTime(chapter.seconds)));
+					increase.addEventListener('click', e => adjustChapterSeconds(getElementChapter(e)!, 1).then(chapter => isVOD() ? setTime(chapter.seconds) : undefined));
 					time.appendChild(increase);
 					li.appendChild(time);
 				}
@@ -721,39 +743,39 @@ r2 = (async function main() {
 					time.childNodes[1].textContent = timeContent
 				}
 
-				const title = li.querySelector('span.r2_chapter_title') || document.createElement('span');
+				const title = li.querySelector<HTMLElement>('span.r2_chapter_title') || document.createElement('span');
 				if (!existingLi) {
 					title.className = 'r2_chapter_title'
-					title.style.flex = 1;
+					title.style.flex = '1';
 					title.style.textAlign = 'center';
 					if (isVOD()) {
 						title.style.cursor = 'pointer';
-						title.addEventListener('click', e => seekToChapter(getElementChapter(e), e))
+						title.addEventListener('click', e => seekToChapter(getElementChapter(e)!, e))
 					}
-					title.addEventListener('contextmenu', e => startEditingChapter(getElementChapter(e), false, true, e))
+					title.addEventListener('contextmenu', e => startEditingChapter(getElementChapter(e)!, false, true, e))
 					li.appendChild(title);
 				}
 				title.textContent = chapter.name;
 
-				const share = document.querySelector('button.r2_chapter_share') || document.createElement('button')
+				const share = document.querySelector<HTMLButtonElement>('button.r2_chapter_share') || document.createElement('button')
 				if (!existingLi) {
 					share.className = getButtonClass();
 					share.classList.add('r2_chapter_share');
 					share.style.float = 'right';
 					share.textContent = 'Share'
 					share.addEventListener('click', async (e) => {
-						navigator.clipboard.writeText(`https://twitch.tv/videos/${await ids.getVideoID()}?t=${generateTwitchTimestamp(getElementChapter(e).seconds)}`);
+						navigator.clipboard.writeText(`https://twitch.tv/videos/${await window.ids.getVideoID()}?t=${generateTwitchTimestamp(getElementChapter(e)!.seconds)}`);
 					})
 					li.appendChild(share);
 				}
 
-				const deleteBtn = document.querySelector('button.r2_chapter_delete') || document.createElement('button')
+				const deleteBtn = document.querySelector<HTMLButtonElement>('button.r2_chapter_delete') || document.createElement('button')
 				if (!existingLi) {
 					deleteBtn.className = getButtonClass();
 					deleteBtn.classList.add('r2_chapter_delete');
 					deleteBtn.style.float = 'right';
 					deleteBtn.textContent = 'Delete'
-					deleteBtn.addEventListener('click', e => deleteChapter(getElementChapter(e), e))
+					deleteBtn.addEventListener('click', e => deleteChapter(getElementChapter(e)!, e))
 					li.appendChild(deleteBtn);
 				}
 
@@ -778,7 +800,7 @@ r2 = (async function main() {
 			document.querySelector('.r2_chapter_list')?.remove()
 		}
 
-		const setChapterList = (render) => {
+		const setChapterList = (render: boolean) => {
 			rendering = render
 
 			if (render) openDialogs++;
@@ -788,9 +810,9 @@ r2 = (async function main() {
 		}
 
 		const uninstallChapterList = (() => {
-			let lastLi = null;
+			let lastLi: HTMLLIElement | null = null;
 			const interval = setInterval(() => {
-				const list = document.querySelector('.r2_chapter_list');
+				const list = document.querySelector<HTMLUListElement>('.r2_chapter_list')!;
 				return !list ? null : getCurrentChapterLI(list).then(li => {
 					if (!li) return;
 
@@ -809,7 +831,7 @@ r2 = (async function main() {
 
 	uninstallFuncs.push(uninstallChapterList);
 
-	async function editChapterSeconds(chapter) {
+	async function editChapterSeconds(chapter: Chapter) {
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Time:', () => [formatter.multiline ? 'textarea' : 'input', formatter.serializeSeconds(chapter.seconds)]);
 		if (response === null) return;
@@ -821,7 +843,7 @@ r2 = (async function main() {
 		return handleChapterUpdate();
 	}
 
-	async function editChapterName(chapter) {
+	async function editChapterName(chapter: Chapter) {
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Name:', () => [formatter.multiline ? 'textarea' : 'input', formatter.serializeName(chapter.name)]);
 		if (response === null) return;
@@ -833,7 +855,7 @@ r2 = (async function main() {
 		return handleChapterUpdate();
 	}
 
-	async function editChapter(chapter) {
+	async function editChapter(chapter: Chapter) {
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Chapter:', () => [formatter.multiline ? 'textarea' : 'input', formatter.serializeAll(chapter.name)[0]]);
 		if (response === null) return;
@@ -849,7 +871,7 @@ r2 = (async function main() {
 		const formatter = getUIFormatter()
 		const response = await dialog('prompt', 'Edit Serialized Chapters', () => ['textarea', formatter.serializeAll(chapters)]);
 		if (response === null) return;
-		chapters.splice(0, chapters.length, ...formatter.deserializeAll(response));
+		chapters!.splice(0, chapters!.length, ...formatter.deserializeAll(response));
 		return handleChapterUpdate();
 	}
 
@@ -868,7 +890,7 @@ r2 = (async function main() {
 
 	if (isVOD()) {
 		uninstallFuncs.push((() => {
-			const chapterName = document.createElement('anchor');
+			const chapterName = document.createElement('anchor') as HTMLAnchorElement;
 			chapterName.href = '#';
 			chapterName.style.cursor = 'hover';
 			chapterName.style.paddingLeft = '1em';
@@ -886,7 +908,7 @@ r2 = (async function main() {
 				setChapterList(true);
 			});
 
-			document.querySelector('[data-a-target="player-volume-slider"]').parentNode.parentNode.parentNode.parentNode.appendChild(chapterName);
+			document.querySelector<HTMLElement>('[data-a-target="player-volume-slider"]')!.parentNode!.parentNode!.parentNode!.parentNode!.appendChild(chapterName);
 
 			const chapterTitleInterval = setInterval(async () => {
 				if (chapterName.dataset.controled) return;
@@ -894,9 +916,9 @@ r2 = (async function main() {
 				const now = await getCurrentTimeLive()
 				const chapter = chapters.filter(c => c.seconds <= now).slice(-1)[0] ?? null
 
-				if (!chapter || chapterName.dataset.seconds == chapter.seconds) return
+				if (!chapter || chapterName.dataset.seconds === chapter.seconds.toString()) return
 				chapterName.textContent = chapter.name;
-				chapterName.dataset.seconds = chapter.seconds;
+				chapterName.dataset.seconds = chapter.seconds.toString();
 			}, 1000);
 
 			return () => {
@@ -906,32 +928,33 @@ r2 = (async function main() {
 		})());
 
 		uninstallFuncs.push((() => {
-			const xToSeconds = x => {
+			const xToSeconds = (x: number) => {
 				const rect = bar.getBoundingClientRect();
 				const percentage = x / rect.width
-				const duration = Number(document.querySelector('[data-a-target="player-seekbar-duration"]').dataset.aValue)
+				const duration = Number(document.querySelector<HTMLElement>('[data-a-target="player-seekbar-duration"]')!.dataset.aValue)
 				const seconds = duration * percentage;
 				return seconds;
 			}
-			const handleMouseOver = e => {
+			const handleMouseOver = (e: MouseEvent) => {
 				if (e.target === bar) return;
-				const chapterName = document.querySelector('.r2_current_chapter')
+				const chapterName = document.querySelector<HTMLElement>('.r2_current_chapter')!
 				chapterName.dataset.controled = 'true'
 
+				// @ts-ignore
 				const seconds = xToSeconds(e.layerX);
 
 				const chapter = chapters.filter(c => c.seconds <= seconds).slice(-1)[0] ?? null
 
-				if (!chapter || chapterName.dataset.seconds == chapter.seconds) return
+				if (!chapter || chapterName.dataset.seconds === chapter.seconds.toString()) return
 				chapterName.textContent = chapter.name;
-				chapterName.dataset.seconds = chapter.seconds;
+				chapterName.dataset.seconds = chapter.seconds.toString();
 			}
 
 			const handleMouseLeave = () => {
-				document.querySelector('.r2_current_chapter').dataset.controled = ''
+				document.querySelector<HTMLElement>('.r2_current_chapter')!.dataset.controled = ''
 			}
 
-			const bar = document.querySelector('.seekbar-bar').parentNode;
+			const bar = document.querySelector('.seekbar-bar')!.parentNode! as HTMLElement;
 			bar.addEventListener('mouseover', handleMouseOver);
 			bar.addEventListener('mouseleave', handleMouseLeave)
 			return () => {
@@ -941,12 +964,12 @@ r2 = (async function main() {
 		})());
 
 		uninstallFuncs.push((() => {
-			const handleWheel = async (e) => {
+			const handleWheel = async (e: WheelEvent) => {
 				e.preventDefault();
 				const change = Math.min(Math.max(e.deltaY, -1), 1);
 				await setTime((await getCurrentTimeLive()) + change);
 			}
-			const bar = document.querySelector('.seekbar-bar').parentNode;
+			const bar = document.querySelector('.seekbar-bar')!.parentNode as HTMLElement;
 			bar.addEventListener('wheel', handleWheel);
 			return () => {
 				bar.removeEventListener('wheel', handleWheel);
@@ -961,7 +984,7 @@ r2 = (async function main() {
 
 		chapterChangeHandlers.push(function renderChapters() {
 			removeDOMChapters();
-			const bar = document.querySelector('.seekbar-bar');
+			const bar = document.querySelector<HTMLElement>('.seekbar-bar')!;
 			for (const chapter of chapters) {
 				const node = document.createElement('button')
 				node.className = 'r2_chapter'
@@ -980,12 +1003,13 @@ r2 = (async function main() {
 		})
 
 		// Pull current time from DHMS display, it's always accurate in VODs
-		getCurrentTimeLive = async () => DHMStoSeconds(document.querySelector('[data-a-target="player-seekbar-current-time"]').textContent.split(':').map(Number))
+		getCurrentTimeLive = async () => DHMStoSeconds(document.querySelector<HTMLElement>('[data-a-target="player-seekbar-current-time"]')!.textContent!.split(':').map(Number))
 		uninstallFuncs.push(removeDOMChapters)
 	}
 	else if (isLive()) {
 		if (isAlternatePlayer()) {
 			// m_Player.getPlaybackPositionBroadcast() on AlternatePlayer
+			// @ts-ignore
 			getCurrentTimeLive = async () => м_Проигрыватель.ПолучитьПозициюВоспроизведенияТрансляции()
 
 		} else {
@@ -994,7 +1018,7 @@ r2 = (async function main() {
 			 *
 			 * @returns {number}
 			 */
-			async function getLiveDelay() {
+			async function getLiveDelay(): Promise<number> {
 				const latency = document.querySelector('[aria-label="Latency To Broadcaster"]');
 				const bufferSize = document.querySelector('[aria-label="Buffer Size"]');
 				if (!latency || !bufferSize) {
@@ -1005,12 +1029,12 @@ r2 = (async function main() {
 
 				// Video Stats Toggle -> Settings Gear
 				clickNodes('[data-a-target="player-settings-submenu-advanced-video-stats"] input', '[data-a-target="player-settings-button"]');
-				return [latency, bufferSize].map(e => Number(e.textContent.split(' ')[0])).reduce((sum, s) => sum + s);
+				return [latency, bufferSize].map(e => Number(e.textContent!.split(' ')[0])).reduce((sum, s) => sum + s);
 			}
 
 			getCurrentTimeLive = async () => {
 				const { delay, response: secondsDelay } = await trackDelay(async () => getLiveDelay());
-				const currentTime = DHMStoSeconds(document.querySelector('.live-time').textContent.split(':').map(Number))
+				const currentTime = DHMStoSeconds(document.querySelector<HTMLElement>('.live-time')!.textContent!.split(':').map(Number))
 				const actualTime = currentTime - secondsDelay - (delay / 1000);
 				return actualTime;
 			}
@@ -1049,7 +1073,7 @@ r2 = (async function main() {
 		}
 
 		chapters.push({ seconds, name });
-		if (isLive()) navigator.clipboard.writeText(`https://twitch.tv/videos/${await ids.getVideoID()}?t=${generateTwitchTimestamp(seconds)}`);
+		if (isLive()) navigator.clipboard.writeText(`https://twitch.tv/videos/${await window.ids.getVideoID()}?t=${generateTwitchTimestamp(seconds)}`);
 		return handleChapterUpdate();
 	}
 
@@ -1082,8 +1106,8 @@ r2 = (async function main() {
 	 *
 	 * @param {KeyboardEvent} e
 	 */
-	const keydownHandler = e => {
-		if (['INPUT', 'TEXTAREA'].includes(e.target.tagName)) return;
+	const keydownHandler = (e: KeyboardEvent) => {
+		if (['INPUT', 'TEXTAREA'].includes((e.target! as HTMLElement).tagName)) return;
 		if (e.key === 'u') menu();
 		if (e.key === 'b') addChapterHere()
 	};
@@ -1091,13 +1115,15 @@ r2 = (async function main() {
 	uninstallFuncs.push(() => window.removeEventListener('keydown', keydownHandler));
 
 	const resizeObserver = new ResizeObserver(handleChapterUpdate);
-	resizeObserver.observe(document.querySelector('video'));
-	uninstallFuncs.push(() => resizeObserver.unobserve(document.querySelector('video')));
+	resizeObserver.observe(document.querySelector<HTMLVideoElement>('video')!);
+	uninstallFuncs.push(() => resizeObserver.unobserve(document.querySelector<HTMLVideoElement>('video')!));
 
 
 	if (chapters.length) await handleChapterUpdate();
 
 	log('Setup Ended');
-	return { chapters, uninstall };
+	return { uninstall };
 })();
 log('Script Ended');
+
+export {};
