@@ -94,20 +94,10 @@ export function isVOD() {
  * @returns {boolean}
  */
 export function isLive() {
-	if (isAlternatePlayer()) return true;
 	const parts = window.location.pathname.split('/').slice(1);
 	// @ts-ignore
 	if (!parts.length === 1 && !!parts[0]) return false;
 	return !!document.querySelector('.user-avatar-card__live');
-}
-
-/**
- * If the page is the Alternate Player
- *
- * @returns {boolean}
- */
-export function isAlternatePlayer() {
-	return window.location.href.startsWith('chrome-extension://');
 }
 
 /**
@@ -116,10 +106,7 @@ export function isAlternatePlayer() {
  * @returns {string}
  */
 export function getLoginName() {
-	return isAlternatePlayer()
-		? // `channel=loginName` is in the URL
-		  new URLSearchParams(window.location.search).get('channel')
-		: isLive()
+	return isLive()
 		? // URL ends with loginName
 		  window.location.pathname.split('/')[1]
 		: // URL channel=loginName exists in `og:video` metadata

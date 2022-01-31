@@ -105,9 +105,7 @@ export async function trackDelay<T>(
 
 export function attachEscapeHandler(action: () => void, check = () => true) {
 	const handler = (e: KeyboardEvent) => {
-		if (e.key !== 'Escape' || ['INPUT', 'TEXTAREA'].includes((e.target! as HTMLElement).tagName))
-			return;
-		if (!check()) return;
+		if (e.key !== 'Escape' || !check()) return;
 
 		// Stop other escape handlers from being triggered
 		e.preventDefault();

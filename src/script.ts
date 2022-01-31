@@ -24,7 +24,6 @@ import {
 	generateTwitchTimestamp,
 	getButtonClass,
 	getVideoID,
-	isAlternatePlayer,
 	isLive,
 	isVOD,
 } from './twitch';
@@ -661,48 +660,42 @@ log('Script Started');
 			);
 		addUninstallationStep(removeDOMChapters);
 	} else if (isLive()) {
-		if (isAlternatePlayer()) {
-			// m_Player.getPlaybackPositionBroadcast() on AlternatePlayer
-			// @ts-ignore
-			getCurrentTimeLive = async () => м_Проигрыватель.ПолучитьПозициюВоспроизведенияТрансляции();
-		} else {
-			/**
-			 * Return the number of seconds of delay as reported by Twitch
-			 *
-			 * @returns {number}
-			 */
-			async function getLiveDelay(): Promise<number> {
-				const latency = document.querySelector('[aria-label="Latency To Broadcaster"]');
-				const bufferSize = document.querySelector('[aria-label="Buffer Size"]');
-				if (!latency || !bufferSize) {
-					// Settings Gear -> Advanced -> Video Stats Toggle
-					await clickNodes(
-						'[data-a-target="player-settings-button"]',
-						'[data-a-target="player-settings-menu-item-advanced"]',
-						'[data-a-target="player-settings-submenu-advanced-video-stats"] input'
-					);
-					return getLiveDelay();
-				}
-
-				// Video Stats Toggle -> Settings Gear
-				clickNodes(
-					'[data-a-target="player-settings-submenu-advanced-video-stats"] input',
-					'[data-a-target="player-settings-button"]'
+		/**
+		 * Return the number of seconds of delay as reported by Twitch
+		 *
+		 * @returns {number}
+		 */
+		async function getLiveDelay(): Promise<number> {
+			const latency = document.querySelector('[aria-label="Latency To Broadcaster"]');
+			const bufferSize = document.querySelector('[aria-label="Buffer Size"]');
+			if (!latency || !bufferSize) {
+				// Settings Gear -> Advanced -> Video Stats Toggle
+				await clickNodes(
+					'[data-a-target="player-settings-button"]',
+					'[data-a-target="player-settings-menu-item-advanced"]',
+					'[data-a-target="player-settings-submenu-advanced-video-stats"] input'
 				);
-				return [latency, bufferSize]
-					.map(e => Number(e.textContent!.split(' ')[0]))
-					.reduce((sum, s) => sum + s);
+				return getLiveDelay();
 			}
 
-			getCurrentTimeLive = async () => {
-				const { delay, response: secondsDelay } = await trackDelay(async () => getLiveDelay());
-				const currentTime = DHMStoSeconds(
-					document.querySelector<HTMLElement>('.live-time')!.textContent!.split(':').map(Number)
-				);
-				const actualTime = currentTime - secondsDelay - delay / 1000;
-				return actualTime;
-			};
+			// Video Stats Toggle -> Settings Gear
+			clickNodes(
+				'[data-a-target="player-settings-submenu-advanced-video-stats"] input',
+				'[data-a-target="player-settings-button"]'
+			);
+			return [latency, bufferSize]
+				.map(e => Number(e.textContent!.split(' ')[0]))
+				.reduce((sum, s) => sum + s);
 		}
+
+		getCurrentTimeLive = async () => {
+			const { delay, response: secondsDelay } = await trackDelay(async () => getLiveDelay());
+			const currentTime = DHMStoSeconds(
+				document.querySelector<HTMLElement>('.live-time')!.textContent!.split(':').map(Number)
+			);
+			const actualTime = currentTime - secondsDelay - delay / 1000;
+			return actualTime;
+		};
 	}
 
 	async function handleChapterUpdate() {

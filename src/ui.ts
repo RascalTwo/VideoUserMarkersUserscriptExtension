@@ -65,15 +65,9 @@ export async function dialog(
 				input.value = value;
 				if (type === 'textarea') input.setAttribute('rows', 10);
 
-				// TODO - trim this down to just the required handlers/preventions
-				const overwriteAlternateHandlers = (e: KeyboardEvent) => {
-					e.stopImmediatePropagation();
-					e.stopPropagation();
-					if (e.key === 'Enter' && e.ctrlKey) handleSubmit();
-				};
-				input.addEventListener('keydown', overwriteAlternateHandlers);
-				input.addEventListener('keypress', overwriteAlternateHandlers);
-				input.addEventListener('keyup', overwriteAlternateHandlers);
+				input.addEventListener('keydown', (e: KeyboardEvent) =>
+					e.key === 'Enter' && e.ctrlKey ? handleSubmit() : undefined
+				);
 
 				form.appendChild(input);
 				return [
