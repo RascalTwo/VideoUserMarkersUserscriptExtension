@@ -81,11 +81,49 @@ log('Script Started');
 	while (true) {
 		await delay(1000);
 		if (!document.querySelector('[data-a-target="player-volume-slider"]')) continue;
+		if (!document.querySelector('[data-test-selector="metadata-layout__split-top"]')) continue;
 		if (isLive()) break;
 		if (isVOD() && document.querySelector('.seekbar-bar')) break;
 
 		log('Waiting for player...');
 	}
+
+	addUninstallationStep(
+		(() => {
+			const ui = document.createElement('details');
+			ui.style.margin = '0.5em';
+			ui.style.padding = '0.5em';
+			ui.style.border = '1px solid white';
+
+			const summary = document.createElement('summary');
+			summary.textContent = 'R2 Twitch Chapters';
+			ui.appendChild(summary);
+
+			const wrapper = document.createElement('div');
+			wrapper.style.display = 'flex';
+			wrapper.style.gap = '0.5em';
+			ui.appendChild(wrapper);
+
+			const chaptersButton = document.createElement('button');
+			chaptersButton.textContent = 'Menu';
+			chaptersButton.className = getButtonClass();
+			chaptersButton.style.flex = '1';
+			chaptersButton.addEventListener('click', () => menu());
+			wrapper.appendChild(chaptersButton);
+
+			const addChapter = document.createElement('button');
+			addChapter.textContent = 'Add';
+			addChapter.className = getButtonClass();
+			addChapter.style.flex = '1';
+			addChapter.addEventListener('click', () => addChapterHere());
+			wrapper.appendChild(addChapter);
+
+			document
+				.querySelector('[data-test-selector="metadata-layout__split-top"] > div:last-of-type')!
+				.appendChild(ui);
+			return () => ui.remove();
+		})()
+	);
 
 	function findChapter(seconds: number) {
 		return chapters!.find(chapter => chapter.seconds === seconds);
