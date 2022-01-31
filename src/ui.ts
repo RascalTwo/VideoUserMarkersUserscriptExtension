@@ -7,7 +7,7 @@ export function getDialogCount() {
 	return openDialogs;
 }
 
-export function changeDialogCount(change: number){
+export function changeDialogCount(change: number) {
 	openDialogs += change;
 	return openDialogs;
 }
@@ -136,6 +136,6 @@ export async function dialog(
 			pre(form);
 			afterCreated?.(form);
 			post(form);
-		}, 250);
+		});
 	});
 }
