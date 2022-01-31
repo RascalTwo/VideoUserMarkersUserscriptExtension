@@ -59,7 +59,7 @@ export async function clickNodes(...queries: string[]) {
 /**
  * Convert DHMS to seconds, each part is optional except seconds
  *
- * @param {number[]} parts DHMS numberic parts
+ * @param {number[]} parts DHMS numeric parts
  * @returns {number} seconds
  */
 export function DHMStoSeconds(parts: number[]) {
@@ -119,7 +119,7 @@ export function attachEscapeHandler(action: () => void, check = () => true) {
 	return () => window.removeEventListener('keydown', handler);
 }
 
-export async function loadFromLocalstorage(): Promise<{
+export async function loadFromLocalStorage(): Promise<{
 	formatter: keyof typeof FORMATTERS;
 	content: string;
 }> {
@@ -129,7 +129,7 @@ export async function loadFromLocalstorage(): Promise<{
 	);
 }
 
-export async function saveToLocalstorage(formatter: keyof typeof FORMATTERS, chapters: Chapter[]) {
+export async function saveToLocalStorage(formatter: keyof typeof FORMATTERS, chapters: Chapter[]) {
 	localStorage.setItem(
 		'r2_twitch_chapters_' + (await getVideoID(false)),
 		JSON.stringify({

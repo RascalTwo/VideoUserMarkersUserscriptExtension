@@ -13,8 +13,8 @@ import {
 	delay,
 	DHMStoSeconds,
 	trackDelay,
-	loadFromLocalstorage,
-	saveToLocalstorage,
+	loadFromLocalStorage,
+	saveToLocalStorage,
 	createUninstaller,
 } from './helpers';
 import {
@@ -64,7 +64,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	// Get last segment of URL, which is the video ID
 	const chapters = await (async () => {
-		const { formatter, content } = await loadFromLocalstorage();
+		const { formatter, content } = await loadFromLocalStorage();
 		if (!(formatter in FORMATTERS)) {
 			dialog('alert', `Formatter for saved content does not exist: ${formatter}`);
 			return null;
@@ -239,7 +239,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 */
 	let getCurrentTimeLive = async () => 0;
 	let chapterChangeHandlers: (() => any)[] = [
-		() => loadFromLocalstorage().then(({ formatter }) => saveToLocalstorage(formatter, chapters)),
+		() => loadFromLocalStorage().then(({ formatter }) => saveToLocalStorage(formatter, chapters)),
 	];
 
 	addUninstallationStep(
@@ -249,7 +249,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			chapterName.style.cursor = 'hover';
 			chapterName.style.paddingLeft = '1em';
 			chapterName.className = 'r2_current_chapter';
-			chapterName.dataset.controled = '';
+			chapterName.dataset.controlled = '';
 			if (isVOD()) {
 				chapterName.style.cursor = 'pointer';
 				chapterName.addEventListener('click', e => {
@@ -270,7 +270,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 				.parentNode!.parentNode!.parentNode!.parentNode!.appendChild(chapterName);
 
 			const chapterTitleInterval = setInterval(async () => {
-				if (chapterName.dataset.controled) return;
+				if (chapterName.dataset.controlled) return;
 
 				const now = await getCurrentTimeLive();
 				const chapter = chapters.filter(c => c.seconds <= now).slice(-1)[0] ?? {
@@ -305,7 +305,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 				const handleMouseOver = (e: MouseEvent) => {
 					if (e.target === bar) return;
 					const chapterName = document.querySelector<HTMLElement>('.r2_current_chapter')!;
-					chapterName.dataset.controled = 'true';
+					chapterName.dataset.controlled = 'true';
 
 					// @ts-ignore
 					const seconds = xToSeconds(e.layerX);
@@ -318,7 +318,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 				};
 
 				const handleMouseLeave = () => {
-					document.querySelector<HTMLElement>('.r2_current_chapter')!.dataset.controled = '';
+					document.querySelector<HTMLElement>('.r2_current_chapter')!.dataset.controlled = '';
 				};
 
 				const bar = document.querySelector('.seekbar-bar')!.parentNode! as HTMLElement;
@@ -459,7 +459,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	};
 
 	/**
-	 * Export chapter objects into serailized format
+	 * Export chapter objects into serialized format
 	 */
 	const exportSerialized = async () => {
 		await navigator.clipboard.writeText(getUIFormatter().serializeAll(chapters));
