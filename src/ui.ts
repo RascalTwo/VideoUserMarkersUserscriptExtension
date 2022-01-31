@@ -382,7 +382,7 @@ export const generateChapterList = (
 
 			document.body.appendChild(list);
 
-			delay(1000)
+			delay(0)
 				.then(() => getCurrentChapterLI(list))
 				.then(li => li?.scrollIntoView());
 		}
@@ -392,7 +392,7 @@ export const generateChapterList = (
 		document.querySelector('.r2_chapter_list')?.remove();
 	}
 
-	uninstallFuncs.push(removeChapterList)
+	uninstallFuncs.push(removeChapterList);
 
 	const setChapterList = (render: boolean) => {
 		rendering = render;
