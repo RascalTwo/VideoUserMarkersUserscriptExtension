@@ -365,7 +365,10 @@ export const generateChapterList = (
 				deleteBtn.classList.add('r2_chapter_delete');
 				deleteBtn.style.float = 'right';
 				deleteBtn.textContent = 'Delete';
-				deleteBtn.addEventListener('click', e => deleteChapter(getElementChapter(e)!));
+				deleteBtn.addEventListener('click', e => {
+					deleteChapter(getElementChapter(e)!);
+					li.remove();
+				});
 				li.appendChild(deleteBtn);
 			}
 
