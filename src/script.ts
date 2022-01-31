@@ -38,6 +38,8 @@ declare global {
 
 log('Script Started');
 
+const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layout__"]';
+
 (async function main() {
 	// Run uninstall if previously loaded, development only
 	await window.r2_twitch_chapters?.uninstall();
@@ -78,7 +80,7 @@ log('Script Started');
 	while (true) {
 		await delay(1000);
 		if (!document.querySelector('[data-a-target="player-volume-slider"]')) continue;
-		if (!document.querySelector('[data-test-selector="metadata-layout__split-top"]')) continue;
+		if (!document.querySelector(TOP_BAR_SELECTOR)) continue;
 		if (isLive()) break;
 		if (isVOD() && document.querySelector('.seekbar-bar')) break;
 
@@ -115,9 +117,7 @@ log('Script Started');
 			addChapter.addEventListener('click', () => addChapterHere());
 			wrapper.appendChild(addChapter);
 
-			document
-				.querySelector('[data-test-selector="metadata-layout__split-top"] > div:last-of-type')!
-				.appendChild(ui);
+			document.querySelector(TOP_BAR_SELECTOR + ' > div:last-of-type')!.appendChild(ui);
 			return () => ui.remove();
 		})()
 	);
@@ -242,49 +242,54 @@ log('Script Started');
 		() => loadFromLocalstorage().then(({ formatter }) => saveToLocalstorage(formatter, chapters)),
 	];
 
-	if (isVOD()) {
-		addUninstallationStep(
-			(() => {
-				const chapterName = document.createElement('anchor') as HTMLAnchorElement;
-				chapterName.href = '#';
-				chapterName.style.cursor = 'hover';
-				chapterName.style.paddingLeft = '1em';
-				chapterName.className = 'r2_current_chapter';
-				chapterName.dataset.controled = '';
+	addUninstallationStep(
+		(() => {
+			const chapterName = document.createElement('anchor') as HTMLAnchorElement;
+			chapterName.href = '#';
+			chapterName.style.cursor = 'hover';
+			chapterName.style.paddingLeft = '1em';
+			chapterName.className = 'r2_current_chapter';
+			chapterName.dataset.controled = '';
+			if (isVOD()) {
+				chapterName.style.cursor = 'pointer';
 				chapterName.addEventListener('click', e => {
 					// Prevent anchor behavior
 					e.preventDefault();
 
 					setTime(Number(chapterName.dataset.seconds));
 				});
-				chapterName.addEventListener('contextmenu', e => {
-					// Stop context menu
-					e.preventDefault();
-					chapterList.setChapterList(true);
-				});
+			}
+			chapterName.addEventListener('contextmenu', e => {
+				// Stop context menu
+				e.preventDefault();
+				chapterList.setChapterList(true);
+			});
 
-				document
-					.querySelector<HTMLElement>('[data-a-target="player-volume-slider"]')!
-					.parentNode!.parentNode!.parentNode!.parentNode!.appendChild(chapterName);
+			document
+				.querySelector<HTMLElement>('[data-a-target="player-volume-slider"]')!
+				.parentNode!.parentNode!.parentNode!.parentNode!.appendChild(chapterName);
 
-				const chapterTitleInterval = setInterval(async () => {
-					if (chapterName.dataset.controled) return;
+			const chapterTitleInterval = setInterval(async () => {
+				if (chapterName.dataset.controled) return;
 
-					const now = await getCurrentTimeLive();
-					const chapter = chapters.filter(c => c.seconds <= now).slice(-1)[0] ?? null;
-
-					if (!chapter || chapterName.dataset.seconds === chapter.seconds.toString()) return;
-					chapterName.textContent = chapter.name;
-					chapterName.dataset.seconds = chapter.seconds.toString();
-				}, 1000);
-
-				return () => {
-					clearInterval(chapterTitleInterval);
-					chapterName.remove();
+				const now = await getCurrentTimeLive();
+				const chapter = chapters.filter(c => c.seconds <= now).slice(-1)[0] ?? {
+					name: '',
+					seconds: -1,
 				};
-			})()
-		);
 
+				chapterName.textContent = chapter.name;
+				chapterName.dataset.seconds = chapter.seconds.toString();
+			}, 1000);
+
+			return () => {
+				clearInterval(chapterTitleInterval);
+				chapterName.remove();
+			};
+		})()
+	);
+
+	if (isVOD()) {
 		addUninstallationStep(
 			(() => {
 				const xToSeconds = (x: number) => {
