@@ -9,11 +9,9 @@
 import { FORMATTERS, getUIFormatter } from './formatters';
 import {
 	log,
-	attachEscapeHandler,
 	clickNodes,
 	delay,
 	DHMStoSeconds,
-	secondsToDHMS,
 	trackDelay,
 	loadFromLocalstorage,
 	saveToLocalstorage,
@@ -27,7 +25,7 @@ import {
 	isLive,
 	isVOD,
 } from './twitch';
-import { changeDialogCount, dialog, getDialogCount } from './ui';
+import { dialog, generateChapterList } from './ui';
 import type { Chapter } from './types';
 
 declare global {
@@ -124,10 +122,6 @@ log('Script Started');
 		})()
 	);
 
-	function findChapter(seconds: number) {
-		return chapters!.find(chapter => chapter.seconds === seconds);
-	}
-
 	/**
 	 * Get X and Y of the seconds provided
 	 *
@@ -181,280 +175,6 @@ log('Script Started');
 		else if (seconds) return editChapterSeconds(chapter);
 		return editChapterName(chapter);
 	}
-
-	function deleteChapter(chapter: Chapter) {
-		const index = chapters!.findIndex(c => c.seconds === chapter.seconds);
-		chapters!.splice(index, 1);
-		return handleChapterUpdate();
-	}
-
-	function adjustChapterSeconds(chapter: Chapter, change: number) {
-		chapter.seconds += change;
-		return handleChapterUpdate().then(() => chapter);
-	}
-
-	const { removeChapterList, renderChapterList, setChapterList, uninstallChapterList } = (() => {
-		let rendering = false;
-		let last = { x: 0, y: 0 };
-
-		const getCurrentChapterLI = (list: HTMLUListElement) =>
-			getCurrentTimeLive().then(
-				now =>
-					list.querySelectorAll('li')[
-						(chapters!
-							.map((c, i) => [c, i] as [Chapter, number])
-							.filter(([c]) => c.seconds <= now)
-							.slice(-1)[0] ?? [null, -1])[1]
-					]
-			);
-
-		function renderChapterList() {
-			if (!rendering) return removeChapterList();
-
-			const existingList = document.querySelector<HTMLUListElement>('.r2_chapter_list');
-			const list = existingList || (document.createElement('ul') as HTMLUListElement);
-			if (!existingList) {
-				list.className = 'r2_chapter_list';
-				list.style.position = 'absolute';
-				list.style.zIndex = (9000 + getDialogCount()).toString();
-				list.style.backgroundColor = '#18181b';
-				list.style.padding = '1em';
-				list.style.borderRadius = '1em';
-				list.style.color = 'white';
-				list.style.display = 'flex';
-				list.style.flexDirection = 'column';
-				list.style.maxHeight = '75vh';
-				list.style.maxWidth = '50vw';
-				list.style.overflow = 'scroll';
-				list.style.resize = 'both';
-
-				list.style.top = last.y + 'px';
-				list.style.left = last.x + 'px';
-
-				const header = document.createElement('h4');
-				header.textContent = 'Chapter List';
-				header.style.backgroundColor = '#08080b';
-				header.style.userSelect = 'none';
-				header.style.padding = '0';
-				header.style.margin = '0';
-
-				let dragging = false;
-				header.addEventListener('mousedown', e => {
-					dragging = true;
-					last = { x: e.clientX, y: e.clientY };
-				});
-				const handleMouseUp = () => {
-					dragging = false;
-				};
-				document.body.addEventListener('mouseup', handleMouseUp);
-
-				const handleMouseMove = (e: MouseEvent) => {
-					if (!dragging) return;
-
-					list.style.top = list.offsetTop - (last.y - e.clientY) + 'px';
-					list.style.left = list.offsetLeft - (last.x - e.clientX) + 'px';
-					last = { x: e.clientX, y: e.clientY };
-				};
-				document.body.addEventListener('mousemove', handleMouseMove);
-				list.appendChild(header);
-
-				addUninstallationStep(() => {
-					document.body.removeEventListener('mousemove', handleMouseMove);
-					document.body.removeEventListener('mouseup', handleMouseUp);
-				});
-
-				const closeButton = document.createElement('button');
-				closeButton.className = getButtonClass();
-				closeButton.style.float = 'right';
-				closeButton.textContent = 'Close';
-				closeButton.addEventListener('click', () => setChapterList(false));
-
-				header.appendChild(closeButton);
-
-				addUninstallationStep(
-					attachEscapeHandler(
-						() => setChapterList(false),
-						() => list.style.zIndex === (9000 + getDialogCount()).toString()
-					)
-				);
-			}
-
-			chapters!.sort((a, b) => a.seconds - b.seconds);
-			const places = secondsToDHMS(chapters![chapters!.length - 1]?.seconds ?? 0).split(':').length;
-
-			function getElementChapter(e: Event) {
-				return findChapter(
-					Number((e.target! as HTMLElement).closest<HTMLElement>('[data-seconds]')!.dataset.seconds)
-				);
-			}
-
-			for (const [i, chapter] of chapters!.entries()) {
-				const existingLi = list.querySelectorAll('li')[i];
-				const li = existingLi || document.createElement('li');
-				li.dataset.seconds = chapter.seconds.toString();
-				if (!existingLi) {
-					li.style.display = 'flex';
-					li.style.alignItems = 'center';
-				}
-
-				const timeContent = secondsToDHMS(chapter.seconds, places);
-
-				const time = li.querySelector('span') || document.createElement('span');
-				if (!existingLi) {
-					time.style.fontFamily = 'monospace';
-					time.addEventListener('wheel', e => {
-						// Stop native scrolling
-						e.preventDefault();
-
-						return adjustChapterSeconds(
-							getElementChapter(e)!,
-							Math.min(Math.max(e.deltaY, -1), 1)
-						).then(chapter => (isVOD() ? setTime(chapter.seconds) : undefined));
-					});
-
-					const decrease = document.createElement('button');
-					decrease.className = getButtonClass();
-					decrease.textContent = '-';
-					decrease.title = 'Subtract 1 second';
-					decrease.addEventListener('click', e =>
-						adjustChapterSeconds(getElementChapter(e)!, -1).then(chapter =>
-							isVOD() ? setTime(chapter.seconds) : undefined
-						)
-					);
-					time.appendChild(decrease);
-
-					const timeText = document.createElement('span');
-					timeText.textContent = timeContent;
-					if (isVOD()) {
-						timeText.style.cursor = 'pointer';
-						timeText.addEventListener('click', e => seekToChapter(getElementChapter(e)!, e));
-					}
-					timeText.addEventListener('contextmenu', e =>
-						startEditingChapter(getElementChapter(e)!, true, false, e)
-					);
-					time.appendChild(timeText);
-
-					const increase = document.createElement('button');
-					increase.className = getButtonClass();
-					increase.textContent = '+';
-					increase.title = 'Add 1 second';
-					increase.addEventListener('click', e =>
-						adjustChapterSeconds(getElementChapter(e)!, 1).then(chapter =>
-							isVOD() ? setTime(chapter.seconds) : undefined
-						)
-					);
-					time.appendChild(increase);
-					li.appendChild(time);
-				} else {
-					time.childNodes[1].textContent = timeContent;
-				}
-
-				const title =
-					li.querySelector<HTMLElement>('span.r2_chapter_title') || document.createElement('span');
-				if (!existingLi) {
-					title.className = 'r2_chapter_title';
-					title.style.flex = '1';
-					title.style.textAlign = 'center';
-					if (isVOD()) {
-						title.style.cursor = 'pointer';
-						title.addEventListener('click', e => seekToChapter(getElementChapter(e)!, e));
-					}
-					title.addEventListener('contextmenu', e =>
-						startEditingChapter(getElementChapter(e)!, false, true, e)
-					);
-					li.appendChild(title);
-				}
-				title.textContent = chapter.name;
-
-				const share =
-					document.querySelector<HTMLButtonElement>('button.r2_chapter_share') ||
-					document.createElement('button');
-				if (!existingLi) {
-					share.className = getButtonClass();
-					share.classList.add('r2_chapter_share');
-					share.style.float = 'right';
-					share.textContent = 'Share';
-					share.addEventListener('click', async e => {
-						navigator.clipboard.writeText(
-							`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(
-								getElementChapter(e)!.seconds
-							)}`
-						);
-					});
-					li.appendChild(share);
-				}
-
-				const deleteBtn =
-					document.querySelector<HTMLButtonElement>('button.r2_chapter_delete') ||
-					document.createElement('button');
-				if (!existingLi) {
-					deleteBtn.className = getButtonClass();
-					deleteBtn.classList.add('r2_chapter_delete');
-					deleteBtn.style.float = 'right';
-					deleteBtn.textContent = 'Delete';
-					deleteBtn.addEventListener('click', e => deleteChapter(getElementChapter(e)!));
-					li.appendChild(deleteBtn);
-				}
-
-				if (!existingLi) list.appendChild(li);
-			}
-
-			if (!existingList) {
-				const closeButton = document.createElement('button');
-				closeButton.className = getButtonClass();
-				closeButton.style.float = 'right';
-				closeButton.textContent = 'Close';
-				closeButton.addEventListener('click', () => setChapterList(false));
-				list.appendChild(closeButton);
-
-				document.body.appendChild(list);
-
-				delay(1000)
-					.then(() => getCurrentChapterLI(list))
-					.then(li => li?.scrollIntoView());
-			}
-		}
-
-		function removeChapterList() {
-			document.querySelector('.r2_chapter_list')?.remove();
-		}
-
-		const setChapterList = (render: boolean) => {
-			rendering = render;
-
-			changeDialogCount(Number(render));
-
-			renderChapterList();
-		};
-
-		const uninstallChapterList = (() => {
-			let lastLi: HTMLLIElement | null = null;
-			const interval = setInterval(() => {
-				const list = document.querySelector<HTMLUListElement>('.r2_chapter_list')!;
-				return !list
-					? null
-					: getCurrentChapterLI(list).then(li => {
-							if (!li) return;
-
-							li.style.backgroundColor = 'black';
-							if (li === lastLi) return;
-							if (lastLi) lastLi.style.backgroundColor = '';
-							lastLi = li;
-					  });
-			}, 1000);
-
-			return () => clearInterval(interval);
-		})();
-
-		return {
-			removeChapterList,
-			renderChapterList,
-			setChapterList,
-			uninstallChapterList,
-		};
-	})();
-
-	addUninstallationStep(uninstallChapterList);
 
 	async function editChapterSeconds(chapter: Chapter) {
 		const formatter = getUIFormatter();
@@ -512,17 +232,14 @@ log('Script Started');
 		return handleChapterUpdate();
 	}
 
-	// Functions to call to remove script from site
-	addUninstallationStep(removeChapterList);
 	/**
 	 * Get the current time in seconds of the player
 	 *
 	 * @returns {number}
 	 */
 	let getCurrentTimeLive = async () => 0;
-	let chapterChangeHandlers = [
+	let chapterChangeHandlers: (() => any)[] = [
 		() => loadFromLocalstorage().then(({ formatter }) => saveToLocalstorage(formatter, chapters)),
-		renderChapterList,
 	];
 
 	if (isVOD()) {
@@ -543,7 +260,7 @@ log('Script Started');
 				chapterName.addEventListener('contextmenu', e => {
 					// Stop context menu
 					e.preventDefault();
-					setChapterList(true);
+					chapterList.setChapterList(true);
 				});
 
 				document
@@ -698,6 +415,17 @@ log('Script Started');
 		};
 	}
 
+	const chapterList = generateChapterList(
+		chapters,
+		getCurrentTimeLive,
+		handleChapterUpdate,
+		setTime,
+		startEditingChapter,
+		seekToChapter
+	);
+	addUninstallationStep(chapterList.uninstallChapterList);
+	chapterChangeHandlers.push(chapterList.renderChapterList);
+
 	async function handleChapterUpdate() {
 		for (const func of chapterChangeHandlers) await func();
 	}
@@ -745,7 +473,7 @@ log('Script Started');
 		if (!choice) return;
 		else if (choice === 'x') return exportSerialized();
 		else if (choice === 'e') return editAllChapters();
-		else if (choice === 'l') return setChapterList(true);
+		else if (choice === 'l') return chapterList.setChapterList(true);
 	};
 
 	/**
