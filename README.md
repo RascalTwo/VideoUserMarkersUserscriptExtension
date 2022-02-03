@@ -60,6 +60,19 @@ The most general one is the `Escape` key, which will close any open dialogs.
 - `m`
   - Open the Menu
 
+### Chapter List
+
+These shortcuts exist only when the chapter list is open:
+
+- `w`/`s`
+  - Go up/down one chapter
+- `a`/`d`
+  - Decrement/Increment of current chapter by one seconds
+- `q`/`e`
+  - Decrement/Increment player time by one second
+- `n`
+  - Edit the name of the current chapter
+
 ## Storage
 
 All the chapters are stored in `localStorage` based on the archival VOD, so you won't lose them until you clear this.
