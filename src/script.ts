@@ -492,14 +492,6 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	};
 
 	/**
-	 * Share markers objects into serialized format via URL
-	 */
-	const shareSerialized = async () => {
-		await writeToClipboard(window.btoa(JSON.stringify(markers)));
-		return dialog('alert', 'URL shared to clipboard!');
-	};
-
-	/**
 	 * Export markers objects into serialized format
 	 */
 	const exportSerialized = async () => {
@@ -512,13 +504,11 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 */
 	const menu = async () => {
 		const choice = await dialog('choose', 'R2 Twitch User-Markers', () => ({
-			Share: 's',
 			Export: 'x',
 			Edit: 'e',
 			List: 'l',
 		}));
 		if (!choice) return;
-		else if (choice === 's') return shareSerialized();
 		else if (choice === 'x') return exportSerialized();
 		else if (choice === 'e') return editAllMarkers();
 		else if (choice === 'l') return markerList.setMarkerList(true);
