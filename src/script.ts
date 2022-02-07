@@ -80,7 +80,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	while (true) {
 		await delay(1000);
-		if (!document.querySelector('[data-a-target="player-volume-slider"]')) {
+		if (!document.querySelector('.video-ref [data-a-target="player-volume-slider"]')) {
 			log('Waiting for Volume...');
 			continue;
 		}
@@ -88,13 +88,13 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			log('Waiting for Video Info Bar...');
 			continue;
 		}
-		if (document.querySelector('[data-a-target="video-ad-countdown"]')) {
+		if (document.querySelector('.video-ref [data-a-target="video-ad-countdown"]')) {
 			log('Waiting for Advertisement...');
 			await delay(5000);
 			continue;
 		}
 		if (isLive()) break;
-		if (isVOD() && document.querySelector('.seekbar-bar')) break;
+		if (isVOD() && document.querySelector('.video-ref .seekbar-bar')) break;
 
 		log('Waiting for player...');
 	}
@@ -142,14 +142,14 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 * @returns {{ x: number, y: number, minX: number, maxX: number }}
 	 */
 	function getTimeXY(seconds: number) {
-		const bar = document.querySelector('.seekbar-bar')!;
+		const bar = document.querySelector('.video-ref .seekbar-bar')!;
 
 		const rect = bar.getBoundingClientRect();
 		const minX = rect.left;
 		const maxX = rect.right;
 
 		const duration = Number(
-			document.querySelector<HTMLElement>('[data-a-target="player-seekbar-duration"]')!.dataset
+			document.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar-duration"]')!.dataset
 				.aValue
 		);
 		const percentage = seconds / duration;
@@ -164,7 +164,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 * @param {number} seconds
 	 */
 	async function setTime(seconds: number) {
-		const bar = document.querySelector<HTMLElement>('[data-a-target="player-seekbar"]')!;
+		const bar = document.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar"]')!;
 		Object.entries(bar.parentNode!)
 			.find(([key]) => key.startsWith('__reactEventHandlers'))![1]
 			.children[2].props.onThumbLocationChange(seconds);
@@ -257,7 +257,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	addUninstallationStep(
 		(() => {
-			const markerName = document.createElement('anchor') as HTMLAnchorElement;
+			const markerName = document.createElement('a') as HTMLAnchorElement;
 			markerName.href = '#';
 			markerName.style.cursor = 'hover';
 			markerName.style.paddingLeft = '1em';
@@ -279,7 +279,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			});
 
 			document
-				.querySelector<HTMLElement>('[data-a-target="player-volume-slider"]')!
+				.querySelector<HTMLElement>('.video-ref [data-a-target="player-volume-slider"]')!
 				.parentNode!.parentNode!.parentNode!.parentNode!.appendChild(markerName);
 
 			const markerTitleInterval = setInterval(async () => {
@@ -316,7 +316,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 					const rect = bar.getBoundingClientRect();
 					const percentage = x / rect.width;
 					const duration = Number(
-						document.querySelector<HTMLElement>('[data-a-target="player-seekbar-duration"]')!
+						document.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar-duration"]')!
 							.dataset.aValue
 					);
 					const seconds = duration * percentage;
@@ -324,7 +324,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 				};
 				const handleMouseOver = (e: MouseEvent) => {
 					if (e.target === bar) return;
-					const markerName = document.querySelector<HTMLElement>('.r2_current_marker')!;
+					const markerName = document.querySelector<HTMLElement>('.video-ref .r2_current_marker')!;
 					markerName.dataset.controlled = 'true';
 
 					// @ts-ignore
@@ -338,10 +338,10 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 				};
 
 				const handleMouseLeave = () => {
-					document.querySelector<HTMLElement>('.r2_current_marker')!.dataset.controlled = '';
+					document.querySelector<HTMLElement>('.video-ref .r2_current_marker')!.dataset.controlled = '';
 				};
 
-				const bar = document.querySelector('.seekbar-bar')!.parentNode! as HTMLElement;
+				const bar = document.querySelector('.video-ref .seekbar-bar')!.parentNode! as HTMLElement;
 				bar.addEventListener('mouseover', handleMouseOver);
 				bar.addEventListener('mouseleave', handleMouseLeave);
 				return () => {
@@ -358,7 +358,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 					const change = Math.min(Math.max(e.deltaY, -1), 1);
 					await setTime((await getCurrentTimeLive()) + change);
 				};
-				const bar = document.querySelector('.seekbar-bar')!.parentNode as HTMLElement;
+				const bar = document.querySelector('.video-ref .seekbar-bar')!.parentNode as HTMLElement;
 				bar.addEventListener('wheel', handleWheel);
 				return () => {
 					bar.removeEventListener('wheel', handleWheel);
@@ -369,12 +369,12 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		 * Remove marker DOM elements, done before rendering and uninstall
 		 */
 		const removeDOMMarkers = () => {
-			document.querySelectorAll('.r2_marker').forEach(e => e.remove());
+			document.querySelectorAll('.video-ref .r2_marker').forEach(e => e.remove());
 		};
 
 		markerChangeHandlers.push(function renderMarkers() {
 			removeDOMMarkers();
-			const bar = document.querySelector<HTMLElement>('.seekbar-bar')!;
+			const bar = document.querySelector<HTMLElement>('.video-ref .seekbar-bar')!;
 			for (const marker of markers) {
 				const node = document.createElement('button');
 				node.className = 'r2_marker';
@@ -396,7 +396,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		getCurrentTimeLive = async () =>
 			DHMStoSeconds(
 				document
-					.querySelector<HTMLElement>('[data-a-target="player-seekbar-current-time"]')!
+					.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar-current-time"]')!
 					.textContent!.split(':')
 					.map(Number)
 			);
@@ -412,8 +412,8 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		async function getLiveDelay(): Promise<number> {
 			const now = Date.now();
 			if (now - cachedDelay[0] < 60000) return Promise.resolve(cachedDelay[1]);
-			const latency = document.querySelector('[aria-label="Latency To Broadcaster"]');
-			const bufferSize = document.querySelector('[aria-label="Buffer Size"]');
+			const latency = document.querySelector('.video-ref [aria-label="Latency To Broadcaster"]');
+			const bufferSize = document.querySelector('.video-ref [aria-label="Buffer Size"]');
 			if (!latency || !bufferSize) {
 				// Settings Gear -> Advanced -> Video Stats Toggle
 				await clickNodes(
@@ -540,9 +540,9 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	addUninstallationStep(() => window.removeEventListener('keydown', keydownHandler));
 
 	const resizeObserver = new ResizeObserver(handleMarkerUpdate);
-	resizeObserver.observe(document.querySelector<HTMLVideoElement>('video')!);
+	resizeObserver.observe(document.querySelector<HTMLVideoElement>('.video-ref video')!);
 	addUninstallationStep(() =>
-		resizeObserver.unobserve(document.querySelector<HTMLVideoElement>('video')!)
+		resizeObserver.unobserve(document.querySelector<HTMLVideoElement>('.video-ref video')!)
 	);
 
 	if (markers.length) await handleMarkerUpdate();
