@@ -167,6 +167,7 @@ export const generateChapterList = (
 
 	let rendering = false;
 	let last = { x: window.innerWidth / 10, y: window.innerHeight / 10 };
+	const closeFuncs: (() => void)[] = [];
 	const uninstallFuncs: (() => void)[] = [];
 
 	const getCurrentChapterLI = (list: HTMLUListElement) =>
@@ -216,7 +217,7 @@ export const generateChapterList = (
 					getCurrentTimeLive().then(seconds => setTime(seconds + (key === 'q' ? -1 : 1)));
 			};
 			window.addEventListener('keydown', keydownHandler);
-			uninstallFuncs.push(() => window.removeEventListener('keydown', keydownHandler));
+			closeFuncs.push(() => window.removeEventListener('keydown', keydownHandler));
 
 			list.className = 'r2_chapter_list';
 			list.style.position = 'absolute';
@@ -386,10 +387,9 @@ export const generateChapterList = (
 						seekToChapter(getElementChapter(e)!, e);
 					});
 				}
-				title.addEventListener('contextmenu', e => {
-					makeActive(li, false);
-					startEditingChapter(getElementChapter(e)!, false, true, e);
-				});
+				title.addEventListener('contextmenu', e =>
+					startEditingChapter(getElementChapter(e)!, false, true, e)
+				);
 				li.appendChild(title);
 			}
 			title.textContent = chapter.name;
@@ -402,14 +402,13 @@ export const generateChapterList = (
 				share.classList.add('r2_chapter_share');
 				share.style.float = 'right';
 				share.textContent = 'Share';
-				share.addEventListener('click', async e => {
-					makeActive(li, false);
+				share.addEventListener('click', async e =>
 					navigator.clipboard.writeText(
 						`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(
 							getElementChapter(e)!.seconds
 						)}`
-					);
-				});
+					)
+				);
 				li.appendChild(share);
 			}
 
@@ -453,6 +452,8 @@ export const generateChapterList = (
 
 	function removeChapterList() {
 		document.querySelector('.r2_chapter_list')?.remove();
+		closeFuncs.forEach(close => close());
+		closeFuncs.splice(0, closeFuncs.length);
 	}
 
 	uninstallFuncs.push(removeChapterList);
