@@ -58,7 +58,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	);
 	addUninstallationStep(clearIDsCache);
 	if (!shouldActivate) {
-		log(`[R2 Twitch Chapters] Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
+		log(`Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
 		return;
 	}
 
