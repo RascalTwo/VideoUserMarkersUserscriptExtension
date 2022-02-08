@@ -186,6 +186,38 @@ export const generateChapterList = (
 		const existingList = document.querySelector<HTMLUListElement>('.r2_chapter_list');
 		const list = existingList || (document.createElement('ul') as HTMLUListElement);
 		if (!existingList) {
+			const keydownHandler = (e: KeyboardEvent) => {
+				if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+
+				const { key } = e;
+				const active = list.querySelector('li[data-r2_active_chapter="true"]');
+				if (key === 'ArrowUp' || key === 'ArrowDown') {
+					if (!active) makeActive(list.querySelector('li')!);
+					else if (key === 'ArrowUp' && active.previousElementSibling?.tagName === 'LI')
+						makeActive(active.previousElementSibling as HTMLLIElement);
+					else if (key === 'ArrowDown' && active.nextElementSibling?.tagName === 'LI')
+						makeActive(active.nextElementSibling as HTMLLIElement);
+					else {
+						return;
+					}
+					e.preventDefault();
+					e.stopPropagation();
+				} else if (key === 'ArrowLeft' || key === 'ArrowRight') {
+					if (!active) return;
+					e.preventDefault();
+					e.stopPropagation();
+					return adjustChapterSeconds(
+						getElementChapter({ target: active })!,
+						key === 'ArrowLeft' ? -1 : 1
+					).then(chapter => (isVOD() ? setTime(chapter.seconds) : undefined));
+				} else if (key === 'n' && active) {
+					return startEditingChapter(getElementChapter({ target: active })!, false, true, e);
+				} else if (isVOD() && (key === 'a' || key === 'd'))
+					getCurrentTimeLive().then(seconds => setTime(seconds + (key === 'a' ? -1 : 1)));
+			};
+			window.addEventListener('keydown', keydownHandler);
+			uninstallFuncs.push(() => window.removeEventListener('keydown', keydownHandler));
+
 			list.className = 'r2_chapter_list';
 			list.style.position = 'absolute';
 			list.style.zIndex = (9000 + getDialogCount()).toString();
@@ -254,12 +286,23 @@ export const generateChapterList = (
 		chapters!.sort((a, b) => a.seconds - b.seconds);
 		const places = secondsToDHMS(chapters![chapters!.length - 1]?.seconds ?? 0).split(':').length;
 
-		function getElementChapter(e: Event) {
+		function getElementChapter(e: { target: EventTarget | null }) {
 			const seconds = Number(
 				(e.target! as HTMLElement).closest<HTMLElement>('[data-seconds]')!.dataset.seconds
 			);
 			return chapters!.find(chapter => chapter.seconds === seconds);
 		}
+
+		const makeActive = (li: HTMLLIElement) => {
+			list.querySelectorAll<HTMLLIElement>('li[data-r2_active_chapter="true"]').forEach(otherLi => {
+				delete otherLi.dataset.r2_active_chapter;
+				otherLi.style.backgroundColor = '';
+			});
+			li.dataset.r2_active_chapter = 'true';
+			li.style.backgroundColor = 'black';
+			li.scrollIntoView();
+			if (isVOD()) return setTime(getElementChapter({ target: li })!.seconds);
+		};
 
 		for (const [i, chapter] of chapters!.entries()) {
 			const existingLi = list.querySelectorAll('li')[i];
@@ -276,6 +319,7 @@ export const generateChapterList = (
 			if (!existingLi) {
 				time.style.fontFamily = 'monospace';
 				time.addEventListener('wheel', e => {
+					makeActive(li);
 					// Stop native scrolling
 					e.preventDefault();
 
@@ -289,33 +333,40 @@ export const generateChapterList = (
 				decrease.className = getButtonClass();
 				decrease.textContent = '-';
 				decrease.title = 'Subtract 1 second';
-				decrease.addEventListener('click', e =>
+				decrease.addEventListener('click', e => {
+					makeActive(li);
 					adjustChapterSeconds(getElementChapter(e)!, -1).then(chapter =>
 						isVOD() ? setTime(chapter.seconds) : undefined
-					)
-				);
+					);
+				});
 				time.appendChild(decrease);
 
 				const timeText = document.createElement('span');
 				timeText.textContent = timeContent;
 				if (isVOD()) {
 					timeText.style.cursor = 'pointer';
-					timeText.addEventListener('click', e => seekToChapter(getElementChapter(e)!, e));
+					timeText.addEventListener('click', e => {
+						makeActive(li);
+						seekToChapter(getElementChapter(e)!, e);
+					});
 				}
-				timeText.addEventListener('contextmenu', e =>
-					startEditingChapter(getElementChapter(e)!, true, false, e)
-				);
+				timeText.addEventListener('contextmenu', e => {
+					makeActive(li);
+
+					startEditingChapter(getElementChapter(e)!, true, false, e);
+				});
 				time.appendChild(timeText);
 
 				const increase = document.createElement('button');
 				increase.className = getButtonClass();
 				increase.textContent = '+';
 				increase.title = 'Add 1 second';
-				increase.addEventListener('click', e =>
+				increase.addEventListener('click', e => {
+					makeActive(li);
 					adjustChapterSeconds(getElementChapter(e)!, 1).then(chapter =>
 						isVOD() ? setTime(chapter.seconds) : undefined
-					)
-				);
+					);
+				});
 				time.appendChild(increase);
 				li.appendChild(time);
 			} else {
@@ -330,11 +381,15 @@ export const generateChapterList = (
 				title.style.textAlign = 'center';
 				if (isVOD()) {
 					title.style.cursor = 'pointer';
-					title.addEventListener('click', e => seekToChapter(getElementChapter(e)!, e));
+					title.addEventListener('click', e => {
+						makeActive(li);
+						seekToChapter(getElementChapter(e)!, e);
+					});
 				}
-				title.addEventListener('contextmenu', e =>
-					startEditingChapter(getElementChapter(e)!, false, true, e)
-				);
+				title.addEventListener('contextmenu', e => {
+					makeActive(li);
+					startEditingChapter(getElementChapter(e)!, false, true, e);
+				});
 				li.appendChild(title);
 			}
 			title.textContent = chapter.name;
@@ -348,6 +403,7 @@ export const generateChapterList = (
 				share.style.float = 'right';
 				share.textContent = 'Share';
 				share.addEventListener('click', async e => {
+					makeActive(li);
 					navigator.clipboard.writeText(
 						`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(
 							getElementChapter(e)!.seconds
@@ -387,7 +443,11 @@ export const generateChapterList = (
 
 			delay(0)
 				.then(() => getCurrentChapterLI(list))
-				.then(li => li?.scrollIntoView());
+				.then(li => {
+					if (!li) return;
+					li.scrollIntoView();
+					makeActive(li);
+				});
 		}
 	}
 
