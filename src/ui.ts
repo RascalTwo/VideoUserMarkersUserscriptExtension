@@ -293,7 +293,7 @@ export const generateChapterList = (
 			return chapters!.find(chapter => chapter.seconds === seconds);
 		}
 
-		const makeActive = (li: HTMLLIElement) => {
+		const makeActive = (li: HTMLLIElement, seekTo: boolean = true) => {
 			list.querySelectorAll<HTMLLIElement>('li[data-r2_active_chapter="true"]').forEach(otherLi => {
 				delete otherLi.dataset.r2_active_chapter;
 				otherLi.style.backgroundColor = '';
@@ -301,7 +301,7 @@ export const generateChapterList = (
 			li.dataset.r2_active_chapter = 'true';
 			li.style.backgroundColor = 'black';
 			li.scrollIntoView();
-			if (isVOD()) return setTime(getElementChapter({ target: li })!.seconds);
+			if (seekTo && isVOD()) return setTime(getElementChapter({ target: li })!.seconds);
 		};
 
 		for (const [i, chapter] of chapters!.entries()) {
@@ -387,7 +387,7 @@ export const generateChapterList = (
 					});
 				}
 				title.addEventListener('contextmenu', e => {
-					makeActive(li);
+					makeActive(li, false);
 					startEditingChapter(getElementChapter(e)!, false, true, e);
 				});
 				li.appendChild(title);
@@ -395,7 +395,7 @@ export const generateChapterList = (
 			title.textContent = chapter.name;
 
 			const share =
-				document.querySelector<HTMLButtonElement>('button.r2_chapter_share') ||
+				li.querySelector<HTMLButtonElement>('button.r2_chapter_share') ||
 				document.createElement('button');
 			if (!existingLi) {
 				share.className = getButtonClass();
@@ -403,7 +403,7 @@ export const generateChapterList = (
 				share.style.float = 'right';
 				share.textContent = 'Share';
 				share.addEventListener('click', async e => {
-					makeActive(li);
+					makeActive(li, false);
 					navigator.clipboard.writeText(
 						`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(
 							getElementChapter(e)!.seconds
@@ -414,7 +414,7 @@ export const generateChapterList = (
 			}
 
 			const deleteBtn =
-				document.querySelector<HTMLButtonElement>('button.r2_chapter_delete') ||
+				li.querySelector<HTMLButtonElement>('button.r2_chapter_delete') ||
 				document.createElement('button');
 			if (!existingLi) {
 				deleteBtn.className = getButtonClass();
@@ -446,7 +446,7 @@ export const generateChapterList = (
 				.then(li => {
 					if (!li) return;
 					li.scrollIntoView();
-					makeActive(li);
+					makeActive(li, false);
 				});
 		}
 	}
