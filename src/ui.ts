@@ -166,7 +166,7 @@ export const generateChapterList = (
 	}
 
 	let rendering = false;
-	let last = { x: 0, y: 0 };
+	let last = { x: window.innerWidth / 10, y: window.innerHeight / 10 };
 	const uninstallFuncs: (() => void)[] = [];
 
 	const getCurrentChapterLI = (list: HTMLUListElement) =>
@@ -175,7 +175,7 @@ export const generateChapterList = (
 				list.querySelectorAll('li')[
 					(chapters!
 						.map((c, i) => [c, i] as [Chapter, number])
-						.filter(([c]) => c.seconds <= now)
+						.filter(([c]) => Math.floor(c.seconds) <= now)
 						.slice(-1)[0] ?? [null, -1])[1]
 				]
 		);
@@ -191,29 +191,29 @@ export const generateChapterList = (
 
 				const { key } = e;
 				const active = list.querySelector('li[data-r2_active_chapter="true"]');
-				if (key === 'ArrowUp' || key === 'ArrowDown') {
+				if (key === 'w' || key === 's') {
 					if (!active) makeActive(list.querySelector('li')!);
-					else if (key === 'ArrowUp' && active.previousElementSibling?.tagName === 'LI')
+					else if (key === 'w' && active.previousElementSibling?.tagName === 'LI')
 						makeActive(active.previousElementSibling as HTMLLIElement);
-					else if (key === 'ArrowDown' && active.nextElementSibling?.tagName === 'LI')
+					else if (key === 's' && active.nextElementSibling?.tagName === 'LI')
 						makeActive(active.nextElementSibling as HTMLLIElement);
 					else {
 						return;
 					}
 					e.preventDefault();
 					e.stopPropagation();
-				} else if (key === 'ArrowLeft' || key === 'ArrowRight') {
+				} else if (key === 'a' || key === 'd') {
 					if (!active) return;
 					e.preventDefault();
 					e.stopPropagation();
 					return adjustChapterSeconds(
 						getElementChapter({ target: active })!,
-						key === 'ArrowLeft' ? -1 : 1
+						key === 'a' ? -1 : 1
 					).then(chapter => (isVOD() ? setTime(chapter.seconds) : undefined));
 				} else if (key === 'n' && active) {
 					return startEditingChapter(getElementChapter({ target: active })!, false, true, e);
-				} else if (isVOD() && (key === 'a' || key === 'd'))
-					getCurrentTimeLive().then(seconds => setTime(seconds + (key === 'a' ? -1 : 1)));
+				} else if (isVOD() && (key === 'q' || key === 'e'))
+					getCurrentTimeLive().then(seconds => setTime(seconds + (key === 'q' ? -1 : 1)));
 			};
 			window.addEventListener('keydown', keydownHandler);
 			uninstallFuncs.push(() => window.removeEventListener('keydown', keydownHandler));

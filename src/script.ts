@@ -273,7 +273,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 				if (chapterName.dataset.controlled) return;
 
 				const now = await getCurrentTimeLive();
-				const chapter = chapters.filter(c => c.seconds <= now).slice(-1)[0] ?? {
+				const chapter = chapters.filter(c => Math.floor(c.seconds) <= now).slice(-1)[0] ?? {
 					name: '',
 					seconds: -1,
 				};
@@ -310,7 +310,8 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 					// @ts-ignore
 					const seconds = xToSeconds(e.layerX);
 
-					const chapter = chapters.filter(c => c.seconds <= seconds).slice(-1)[0] ?? null;
+					const chapter =
+						chapters.filter(c => Math.floor(c.seconds) <= seconds).slice(-1)[0] ?? null;
 
 					if (!chapter || chapterName.dataset.seconds === chapter.seconds.toString()) return;
 					chapterName.textContent = chapter.name;
