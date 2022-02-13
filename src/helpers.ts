@@ -1,6 +1,6 @@
 import { FORMATTERS } from './formatters';
 import { getVideoID } from './twitch';
-import { Marker } from './types';
+import { Collection } from './types';
 
 export function log(...args: any) {
 	console.log('[R2 Twitch User-Markers]', ...args);
@@ -121,20 +121,28 @@ export function attachEscapeHandler(action: () => void, check = () => true) {
 
 export async function loadFromLocalStorage(): Promise<{
 	formatter: keyof typeof FORMATTERS;
-	content: string;
+	rawMarkers: string;
+	collection?: Collection;
+	updatedAt: string;
 }> {
 	return JSON.parse(
-		localStorage.getItem('r2_twitch_user_markers_' + (await getVideoID(false))) ??
-			'{"formatter": "json", "content": "[]"}'
+		localStorage.getItem('r2_twitch_user_markers_v2_' + (await getVideoID(false))) ??
+			JSON.stringify({ formatter: 'json', rawMarkers: '[]', updatedAt: new Date().toISOString() })
 	);
 }
 
-export async function saveToLocalStorage(formatter: keyof typeof FORMATTERS, markers: Marker[]) {
+export async function saveToLocalStorage(
+	formatter: keyof typeof FORMATTERS,
+	{ markers, ...collection }: Collection,
+	updatedAt: string
+) {
 	localStorage.setItem(
-		'r2_twitch_user_markers_' + (await getVideoID(false)),
+		'r2_twitch_user_markers_v2_' + (await getVideoID(false)),
 		JSON.stringify({
 			formatter,
-			content: FORMATTERS[formatter].serializeAll(markers),
+			rawMarkers: FORMATTERS[formatter].serializeAll(markers),
+			collection,
+			updatedAt,
 		})
 	);
 }
@@ -166,3 +174,12 @@ export function createUninstaller(reinstall: () => void, shouldReinstall?: () =>
 
 	return addUninstallationStep;
 }
+
+const timestampToHex = (timestamp: number) => Math.floor(timestamp).toString(16);
+
+export const ObjectId = (when: number = Date.now()) => {
+	return (
+		timestampToHex(when / 1000) +
+		' '.repeat(16).replace(/./g, () => timestampToHex(Math.random() * 16))
+	);
+};

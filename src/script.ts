@@ -16,6 +16,7 @@ import {
 	loadFromLocalStorage,
 	saveToLocalStorage,
 	createUninstaller,
+	ObjectId,
 } from './helpers';
 import {
 	clearIDsCache,
@@ -26,7 +27,14 @@ import {
 	isVOD,
 } from './twitch';
 import { dialog, generateMarkerList as generateMarkerList } from './ui';
-import type { Marker } from './types';
+import type { Collection, Marker } from './types';
+import {
+	generateToken,
+	getCollection,
+	getCollections,
+	getCurrentUser,
+	upsertCollection,
+} from './backend';
 
 declare global {
 	interface Window {
@@ -64,16 +72,39 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	}
 
 	// Get last segment of URL, which is the video ID
-	const markers = await (async () => {
-		const { formatter, content } = await loadFromLocalStorage();
+	let user = await getCurrentUser();
+	let otherCollections = await getCollections('Twitch', (await getVideoID(false))!);
+	let { collection, updatedAt } = await (async () => {
+		const {
+			formatter,
+			rawMarkers,
+			collection: foundCollection,
+			updatedAt,
+		} = await loadFromLocalStorage();
 		if (!(formatter in FORMATTERS)) {
 			dialog('alert', `Formatter for saved content does not exist: ${formatter}`);
-			return null;
+			return { collection: null, updatedAt: '' };
 		}
-		return FORMATTERS[formatter].deserializeAll(content) as Marker[];
+		const markers = FORMATTERS[formatter].deserializeAll(rawMarkers) as Marker[];
+		const now = new Date().toISOString();
+		const collection =
+			foundCollection ??
+			({
+				_id: ObjectId(),
+				videoId: await getVideoID(false)!,
+				type: 'Twitch',
+				author: user,
+				title: document.title,
+				description: '',
+				markers,
+				createdAt: now,
+				updatedAt: now,
+			} as Collection);
+		collection.markers = markers;
+		return { collection, updatedAt };
 	})();
 
-	if (markers === null) {
+	if (collection === null) {
 		log('Error loading markers, abandoning');
 		return;
 	}
@@ -149,8 +180,8 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		const maxX = rect.right;
 
 		const duration = Number(
-			document.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar-duration"]')!.dataset
-				.aValue
+			document.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar-duration"]')!
+				.dataset.aValue
 		);
 		const percentage = seconds / duration;
 		const x = (maxX - minX) * percentage;
@@ -174,7 +205,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		// Stop native seekbar behavior
 		e?.stopImmediatePropagation();
 		e?.stopPropagation();
-		return setTime(marker.seconds);
+		return setTime(marker.when);
 	}
 
 	function startEditingMarker(marker: Marker, seconds: boolean, name: boolean, e: Event) {
@@ -193,30 +224,30 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Time:', () => [
 			formatter.multiline ? 'textarea' : 'input',
-			formatter.serializeSeconds(marker.seconds),
+			formatter.serializeSeconds(marker.when),
 		]);
 		if (response === null) return;
 
 		const seconds = formatter.deserializeSeconds(response);
 		if (!seconds) return;
 
-		marker.seconds = seconds;
-		return handleMarkerUpdate();
+		marker.when = seconds;
+		return handleMarkerUpdate(true);
 	}
 
 	async function editMarkerName(marker: Marker) {
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Name:', () => [
 			formatter.multiline ? 'textarea' : 'input',
-			formatter.serializeName(marker.name),
+			formatter.serializeName(marker.title),
 		]);
 		if (response === null) return;
 
 		const name = formatter.deserializeName(response);
 		if (!name) return;
 
-		marker.name = name;
-		return handleMarkerUpdate();
+		marker.title = name;
+		return handleMarkerUpdate(true);
 	}
 
 	async function editMarker(marker: Marker) {
@@ -230,19 +261,27 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		const edited = formatter.deserializeAll(response)[0];
 		if (!edited) return;
 
-		Object.assign(marker, edited);
-		return handleMarkerUpdate();
+		Object.assign(marker, edited, { _id: marker._id, collectionId: marker.collectionId });
+		return handleMarkerUpdate(true);
 	}
 
 	async function editAllMarkers() {
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Serialized Markers', () => [
 			'textarea',
-			formatter.serializeAll(markers!),
+			formatter.serializeAll(collection!.markers!),
 		]);
 		if (response === null) return;
-		markers!.splice(0, markers!.length, ...formatter.deserializeAll(response));
-		return handleMarkerUpdate();
+		collection!.markers!.splice(
+			0,
+			collection!.markers!.length,
+			...(formatter.deserializeAll(response) as Marker[]).map((newMarker, i) => ({
+				...newMarker,
+				_id: collection!.markers![i]._id,
+				collectionId: collection!.markers![i].collectionId,
+			}))
+		);
+		return handleMarkerUpdate(true);
 	}
 
 	/**
@@ -251,8 +290,21 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 * @returns {number}
 	 */
 	let getCurrentTimeLive = async () => 0;
-	let markerChangeHandlers: (() => any)[] = [
-		() => loadFromLocalStorage().then(({ formatter }) => saveToLocalStorage(formatter, markers)),
+	let markerChangeHandlers: ((dataChanged: boolean) => any)[] = [
+		dataChanged => {
+			if (dataChanged) updatedAt = new Date().toISOString();
+		},
+		() =>
+			loadFromLocalStorage().then(({ formatter }) =>
+				saveToLocalStorage(formatter, collection!, updatedAt)
+			),
+		() => {
+			const summary = document.querySelector('.r2_markers_ui')?.querySelector('summary');
+			if (!summary) return;
+
+			if (collection!.updatedAt !== updatedAt) summary.textContent = `R2 Markers *`;
+			else summary.textContent = `R2 Markers`;
+		},
 	];
 
 	addUninstallationStep(
@@ -288,18 +340,18 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 				let marker;
 				if (isVOD()) {
 					const now = await getCurrentTimeLive();
-					marker = markers.filter(m => Math.floor(m.seconds) <= now).slice(-1)[0];
+					marker = collection!.markers.filter(m => Math.floor(m.when) <= now).slice(-1)[0];
 				} else {
-					marker = markers[markers.length - 1];
+					marker = collection!.markers[collection!.markers.length - 1];
 				}
 				if (!marker)
 					marker = {
-						name: '',
-						seconds: -1,
+						title: '',
+						when: -1,
 					};
 
-				markerName.textContent = marker.name;
-				markerName.dataset.seconds = marker.seconds.toString();
+				markerName.textContent = marker.title;
+				markerName.dataset.seconds = marker.when.toString();
 			}, 1000);
 
 			return () => {
@@ -316,8 +368,9 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 					const rect = bar.getBoundingClientRect();
 					const percentage = x / rect.width;
 					const duration = Number(
-						document.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar-duration"]')!
-							.dataset.aValue
+						document.querySelector<HTMLElement>(
+							'.video-ref [data-a-target="player-seekbar-duration"]'
+						)!.dataset.aValue
 					);
 					const seconds = duration * percentage;
 					return seconds;
@@ -330,15 +383,17 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 					// @ts-ignore
 					const seconds = xToSeconds(e.layerX);
 
-					const marker = markers.filter(m => Math.floor(m.seconds) <= seconds).slice(-1)[0] ?? null;
+					const marker =
+						collection!.markers.filter(m => Math.floor(m.when) <= seconds).slice(-1)[0] ?? null;
 
-					if (!marker || markerName.dataset.seconds === marker.seconds.toString()) return;
-					markerName.textContent = marker.name;
-					markerName.dataset.seconds = marker.seconds.toString();
+					if (!marker || markerName.dataset.seconds === marker.when.toString()) return;
+					markerName.textContent = marker.title;
+					markerName.dataset.seconds = marker.when.toString();
 				};
 
 				const handleMouseLeave = () => {
-					document.querySelector<HTMLElement>('.video-ref .r2_current_marker')!.dataset.controlled = '';
+					document.querySelector<HTMLElement>('.video-ref .r2_current_marker')!.dataset.controlled =
+						'';
 				};
 
 				const bar = document.querySelector('.video-ref .seekbar-bar')!.parentNode! as HTMLElement;
@@ -375,16 +430,16 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		markerChangeHandlers.push(function renderMarkers() {
 			removeDOMMarkers();
 			const bar = document.querySelector<HTMLElement>('.video-ref .seekbar-bar')!;
-			for (const marker of markers) {
+			for (const marker of collection!.markers) {
 				const node = document.createElement('button');
 				node.className = 'r2_marker';
-				node.title = marker.name;
+				node.title = marker.title;
 				node.style.position = 'absolute';
 				node.style.width = '1.75px';
 				node.style.height = '10px';
 				node.style.backgroundColor = 'black';
 
-				node.style.left = getTimeXY(marker.seconds).x + 'px';
+				node.style.left = getTimeXY(marker.when).x + 'px';
 
 				node.addEventListener('click', seekToMarker.bind(null, marker));
 				node.addEventListener('contextmenu', startEditingMarker.bind(null, marker, true, true));
@@ -448,7 +503,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	}
 
 	const markerList = generateMarkerList(
-		markers,
+		collection!.markers,
 		getCurrentTimeLive,
 		handleMarkerUpdate,
 		setTime,
@@ -458,8 +513,8 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	addUninstallationStep(markerList.uninstallMarkerList);
 	markerChangeHandlers.push(markerList.renderMarkerList);
 
-	async function handleMarkerUpdate() {
-		for (const func of markerChangeHandlers) await func();
+	async function handleMarkerUpdate(dataChanged: boolean) {
+		for (const func of markerChangeHandlers) await func(dataChanged);
 	}
 
 	const writeToClipboard = (text: string) => {
@@ -483,20 +538,115 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			name = name.substring(2 + offset.toString().length).trim();
 		}
 
-		markers.push({ seconds, name });
+		collection!.markers.push({
+			_id: ObjectId(),
+			collectionId: collection!._id,
+			when: seconds,
+			title: name,
+			description: '',
+		});
 		if (isLive())
 			writeToClipboard(
 				`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(seconds)}`
 			);
-		return handleMarkerUpdate();
+		return handleMarkerUpdate(true);
 	};
 
 	/**
 	 * Export markers objects into serialized format
 	 */
-	const exportSerialized = async () => {
-		await writeToClipboard(getUIFormatter().serializeAll(markers));
+	const exportToClipboard = async () => {
+		await writeToClipboard(getUIFormatter().serializeAll(collection!.markers));
 		return dialog('alert', 'Exported to Clipboard!');
+	};
+
+	const exportToCloud = async () => {
+		if (!collection!.author) collection!.author = user!;
+		if (collection!.author?._id !== user!._id) {
+			await dialog(
+				'choose',
+				`Export your own copy of ${collection!.author.username}s collection?`,
+				() => ({
+					Yes: 'y',
+					No: 'n',
+				})
+			);
+			collection!.author = user!;
+		}
+		const newTitle = await dialog('prompt', 'Collection Title', () => ['input', collection!.title]);
+		if (!newTitle) return;
+		collection!.title = newTitle;
+
+		const newDescription = await dialog('prompt', 'Collection Description', () => [
+			'textarea',
+			collection!.description,
+		]);
+		if (!newDescription) return;
+		collection!.description = newDescription;
+
+		const newPublicity = await dialog('choose', 'Collection Publicity', () => ({
+			Public: 'public',
+			Private: 'private',
+		}));
+		if (newPublicity === 'public') collection!.public = true;
+		else if (newPublicity === 'private' && collection!.public) delete collection!.public;
+
+		collection = await upsertCollection(collection!);
+		updatedAt = collection.updatedAt;
+
+		await handleMarkerUpdate(false);
+
+		return dialog('alert', 'Exported to Cloud!');
+	};
+
+	const importMenu = async () => {
+		const collectionId = await dialog('choose', 'Import from...', () =>
+			otherCollections.reduce((acc, collection) => {
+				acc[`[${collection.author}] ${collection.title}`] = collection._id;
+				return acc;
+			}, {} as Record<string, string>)
+		);
+		if (!collectionId) return;
+		collection = (await getCollection(collectionId))!;
+	};
+
+	const importExportMenu = async () => {
+		otherCollections = await getCollections('Twitch', (await getVideoID(false))!);
+		if (!otherCollections.length) return exportMenu();
+
+		const choice = await dialog('choose', 'Import/Export', () => ({
+			[`Import (${otherCollections.length})`]: 'i',
+			Export: 'e',
+		}));
+		if (!choice) return;
+		if (choice === 'i') return importMenu();
+		if (choice === 'e') return exportMenu();
+	};
+
+	const exportMenu = async () => {
+		if (!user) return exportToClipboard();
+		const choice = await dialog('choose', 'Destination', () => ({
+			Clipboard: 'b',
+			Cloud: 'c',
+		}));
+		if (!choice) return;
+		if (choice === 'b') return exportToClipboard();
+		if (choice === 'c') return exportToCloud();
+	};
+
+	const login = async () => {
+		const username = await dialog('prompt', 'Username');
+		if (!username) return;
+
+		const password = await dialog('prompt', 'Password');
+		if (!password) return;
+
+		try {
+			await generateToken(username, password);
+			user = await getCurrentUser();
+		} catch (e: any) {
+			return dialog('alert', e.toString());
+		}
 	};
 
 	/**
@@ -504,14 +654,16 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 */
 	const menu = async () => {
 		const choice = await dialog('choose', 'R2 Twitch User-Markers', () => ({
-			Export: 'x',
+			'Import/Export': 'x',
 			Edit: 'e',
 			List: 'l',
+			[user ? `Logout (${user.username})` : 'Login']: 'a',
 		}));
 		if (!choice) return;
-		else if (choice === 'x') return exportSerialized();
+		else if (choice === 'x') return importExportMenu();
 		else if (choice === 'e') return editAllMarkers();
 		else if (choice === 'l') return markerList.setMarkerList(true);
+		else if (choice === 'a') return user ? (user = null) : login();
 	};
 
 	/**
@@ -529,16 +681,16 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	window.addEventListener('keydown', keydownHandler);
 	addUninstallationStep(() => window.removeEventListener('keydown', keydownHandler));
 
-	const resizeObserver = new ResizeObserver(handleMarkerUpdate);
+	const resizeObserver = new ResizeObserver(() => handleMarkerUpdate(false));
 	resizeObserver.observe(document.querySelector<HTMLVideoElement>('.video-ref video')!);
 	addUninstallationStep(() =>
 		resizeObserver.unobserve(document.querySelector<HTMLVideoElement>('.video-ref video')!)
 	);
 
-	if (markers.length) await handleMarkerUpdate();
+	if (collection!.markers.length) await handleMarkerUpdate(false);
 
 	log('Setup Ended');
-})();
+})().catch(err => log('Error during main', err));
 
 log('Script Ended');
 

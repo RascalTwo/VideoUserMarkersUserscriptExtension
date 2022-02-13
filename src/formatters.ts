@@ -1,4 +1,4 @@
-import { secondsToDHMS, DHMStoSeconds } from './helpers';
+import { secondsToDHMS, DHMStoSeconds, ObjectId } from './helpers';
 import type { Marker } from './types';
 
 class MarkerFormatter {
@@ -43,10 +43,10 @@ export const FORMATTERS = {
 	minimal: class MinimalFormatter extends MarkerFormatter {
 		static delim = '\n';
 		static *serialize(markers: Marker[]) {
-			const places = secondsToDHMS(markers[markers.length - 1]?.seconds ?? 0).split(':').length;
+			const places = secondsToDHMS(markers[markers.length - 1]?.when ?? 0).split(':').length;
 			for (const marker of markers) {
-				const dhms = secondsToDHMS(marker.seconds, places);
-				yield [dhms, marker.name].join('\t');
+				const dhms = secondsToDHMS(marker.when, places);
+				yield [dhms, marker.title, marker.description].filter(Boolean).join('\t');
 			}
 		}
 		static *deserialize(content: string) {
@@ -55,10 +55,9 @@ export const FORMATTERS = {
 				.split('\n')
 				.map(line => line.trim())
 				.filter(Boolean)) {
-				const [dhms, ...otherWords] = line.split(/\s/);
-				const seconds = DHMStoSeconds(dhms.split(':').map(Number));
-				const name = otherWords.join(' ');
-				yield { name, seconds };
+				const [dhms, title, description] = line.split('\t');
+				const when = DHMStoSeconds(dhms.split(':').map(Number));
+				yield { _id: ObjectId(), collectionId: ObjectId(), title, when, description };
 			}
 		}
 		static deserializeAll(content: string) {
@@ -75,7 +74,7 @@ export const FORMATTERS = {
 
 export function getUIFormatter() {
 	return FORMATTERS[
-		(localStorage.getItem('r2_twitch_user_markers_ui_formatter') as keyof typeof FORMATTERS) ??
+		(localStorage.getItem('r2_twitch_user_markers_ui_formatter_v2') as keyof typeof FORMATTERS) ??
 			'minimal'
 	];
 }

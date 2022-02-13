@@ -144,20 +144,20 @@ export async function dialog(
 export const generateMarkerList = (
 	markers: Marker[],
 	getCurrentTimeLive: () => Promise<number>,
-	handleMarkerUpdate: () => Promise<void>,
+	handleMarkerUpdate: (dataChanged: boolean) => Promise<void>,
 	setTime: (seconds: number) => Promise<void>,
 	startEditingMarker: (marker: Marker, seconds: boolean, name: boolean, e: Event) => Promise<void>,
 	seekToMarker: (marker: Marker, e: Event) => Promise<void>
 ) => {
 	function deleteMarker(marker: Marker) {
-		const index = markers!.findIndex(m => m.seconds === marker.seconds);
+		const index = markers!.findIndex(m => m.when === marker.when);
 		markers!.splice(index, 1);
-		return handleMarkerUpdate();
+		return handleMarkerUpdate(true);
 	}
 
 	function adjustMarkerSeconds(marker: Marker, change: number) {
-		marker.seconds += change;
-		return handleMarkerUpdate().then(() => marker);
+		marker.when += change;
+		return handleMarkerUpdate(true).then(() => marker);
 	}
 
 	let rendering = false;
@@ -205,7 +205,7 @@ export const generateMarkerList = (
 				list.querySelectorAll('li')[
 					(markers!
 						.map((c, i) => [c, i] as [Marker, number])
-						.filter(([c]) => Math.floor(c.seconds) <= now)
+						.filter(([c]) => Math.floor(c.when) <= now)
 						.slice(-1)[0] ?? [null, -1])[1]
 				]
 		);
@@ -245,7 +245,7 @@ export const generateMarkerList = (
 					return adjustMarkerSeconds(
 						getElementMarker({ target: active })!,
 						key === 'a' ? -1 : 1
-					).then(marker => (isVOD() ? setTime(marker.seconds) : undefined));
+					).then(marker => (isVOD() ? setTime(marker.when) : undefined));
 				} else if (key === 'n' && active) {
 					return startEditingMarker(getElementMarker({ target: active })!, false, true, e);
 				} else if (isVOD() && (key === 'q' || key === 'e'))
@@ -331,14 +331,14 @@ export const generateMarkerList = (
 			);
 		}
 
-		markers!.sort((a, b) => a.seconds - b.seconds);
-		const places = secondsToDHMS(markers![markers!.length - 1]?.seconds ?? 0).split(':').length;
+		markers!.sort((a, b) => a.when - b.when);
+		const places = secondsToDHMS(markers![markers!.length - 1]?.when ?? 0).split(':').length;
 
 		function getElementMarker(e: { target: EventTarget | null }) {
 			const seconds = Number(
 				(e.target! as HTMLElement).closest<HTMLElement>('[data-seconds]')!.dataset.seconds
 			);
-			return markers!.find(marker => marker.seconds === seconds);
+			return markers!.find(marker => marker.when === seconds);
 		}
 
 		const makeActive = (li: HTMLLIElement, seekTo: boolean = true) => {
@@ -349,20 +349,20 @@ export const generateMarkerList = (
 			li.dataset.r2_active_marker = 'true';
 			li.style.backgroundColor = 'black';
 			li.scrollIntoView();
-			if (seekTo && isVOD()) return setTime(getElementMarker({ target: li })!.seconds);
+			if (seekTo && isVOD()) return setTime(getElementMarker({ target: li })!.when);
 		};
 
 		for (const [i, marker] of markers!.entries()) {
 			const existingLi = list.querySelectorAll('li')[i];
 			const li = existingLi || document.createElement('li');
-			li.dataset.seconds = marker.seconds.toString();
+			li.dataset.seconds = marker.when.toString();
 			if (!existingLi) {
 				li.style.display = 'flex';
 				li.style.gap = '1em';
 				li.style.alignItems = 'center';
 			}
 
-			const timeContent = secondsToDHMS(marker.seconds, places);
+			const timeContent = secondsToDHMS(marker.when, places);
 
 			const time = li.querySelector('span') || document.createElement('span');
 			if (!existingLi) {
@@ -375,7 +375,7 @@ export const generateMarkerList = (
 					return adjustMarkerSeconds(
 						getElementMarker(e)!,
 						Math.min(Math.max(e.deltaY, -1), 1)
-					).then(marker => (isVOD() ? setTime(marker.seconds) : undefined));
+					).then(marker => (isVOD() ? setTime(marker.when) : undefined));
 				});
 
 				const decrease = document.createElement('button');
@@ -385,7 +385,7 @@ export const generateMarkerList = (
 				decrease.addEventListener('click', e => {
 					makeActive(li);
 					adjustMarkerSeconds(getElementMarker(e)!, -1).then(marker =>
-						isVOD() ? setTime(marker.seconds) : undefined
+						isVOD() ? setTime(marker.when) : undefined
 					);
 				});
 				time.appendChild(decrease);
@@ -411,7 +411,7 @@ export const generateMarkerList = (
 				increase.addEventListener('click', e => {
 					makeActive(li);
 					adjustMarkerSeconds(getElementMarker(e)!, 1).then(marker =>
-						isVOD() ? setTime(marker.seconds) : undefined
+						isVOD() ? setTime(marker.when) : undefined
 					);
 				});
 				time.appendChild(increase);
@@ -438,7 +438,7 @@ export const generateMarkerList = (
 				);
 				li.appendChild(title);
 			}
-			title.textContent = marker.name;
+			title.textContent = marker.title;
 
 			const share =
 				li.querySelector<HTMLButtonElement>('button.r2_marker_share') ||
@@ -451,7 +451,7 @@ export const generateMarkerList = (
 				share.addEventListener('click', async e =>
 					navigator.clipboard.writeText(
 						`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(
-							getElementMarker(e)!.seconds
+							getElementMarker(e)!.when
 						)}`
 					)
 				);

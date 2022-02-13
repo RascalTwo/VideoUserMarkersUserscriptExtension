@@ -2,7 +2,7 @@ git checkout main
 git branch -D dist
 git branch dist
 git checkout dist
-npm run build
+NODE_ENV=production npm run build
 git add dist/userscript.js -f
 git commit -m 'Build'
 git push -u origin dist -f
