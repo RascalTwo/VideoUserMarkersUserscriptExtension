@@ -3,31 +3,24 @@
 // @version  1
 // @grant    none
 // @match    https://www.twitch.tv/*
+// @match    https://www.youtube.com/*
+// @run-at   document-start
 // @require  https://requirejs.org/docs/release/2.3.6/comments/require.js
 // ==/UserScript==
 
 import { FORMATTERS, getUIFormatter } from './formatters';
 import {
 	log,
-	clickNodes,
 	delay,
-	DHMStoSeconds,
-	trackDelay,
 	loadFromLocalStorage,
 	saveToLocalStorage,
 	createUninstaller,
 	ObjectId,
+	NOOP,
+	getPlatform,
 } from './helpers';
-import {
-	clearIDsCache,
-	generateTwitchTimestamp,
-	getButtonClass,
-	getVideoID,
-	isLive,
-	isVOD,
-} from './twitch';
-import { dialog, generateMarkerList as generateMarkerList } from './ui';
-import type { Collection, Marker } from './types';
+import { generateMarkerList as generateMarkerList } from './ui';
+import type { Marker } from './types';
 import {
 	generateToken,
 	getCollection,
@@ -47,62 +40,55 @@ declare global {
 
 log('Script Started');
 
-const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layout__"]';
-
 (async function main() {
 	// Run uninstall if previously loaded, development only
 	await window.r2_twitch_user_markers?.uninstall();
 
 	log('Setup Started');
 
+	const platform = getPlatform();
+	if (!platform) {
+		log('Unsupported platform');
+		return NOOP;
+	}
+
 	while (document.readyState !== 'complete') {
 		await delay(1000);
 		log('Waiting for complete document...');
 	}
 
-	const shouldActivate = isVOD() || isLive();
+	platform.shouldActivate();
 	const addUninstallationStep = createUninstaller(
 		main,
-		shouldActivate ? undefined : () => isVOD() || isLive()
+		platform.shouldActivate() ? undefined : platform.shouldActivate
 	);
-	addUninstallationStep(clearIDsCache);
-	if (!shouldActivate) {
-		log(`Not Activating - VOD: ${isVOD()}; Live: ${isLive()}`);
+	addUninstallationStep(platform.clear);
+	if (!platform.shouldActivate()) {
+		log(`Not Activating`);
 		return;
 	}
 
 	// Get last segment of URL, which is the video ID
 	let user = await getCurrentUser();
-	let otherCollections = await getCollections('Twitch', (await getVideoID(false))!);
-	let { collection, updatedAt } = await (async () => {
+	let otherCollections = await getCollections(platform.name, await platform.getEntityID());
+	let { collection: _collection, updatedAt } = await (async () => {
 		const {
 			formatter,
 			rawMarkers,
 			collection: foundCollection,
 			updatedAt,
-		} = await loadFromLocalStorage();
+		} = await loadFromLocalStorage(await platform.getEntityID());
 		if (!(formatter in FORMATTERS)) {
-			dialog('alert', `Formatter for saved content does not exist: ${formatter}`);
+			platform.dialog('alert', `Formatter for saved content does not exist: ${formatter}`);
 			return { collection: null, updatedAt: '' };
 		}
-		const markers = FORMATTERS[formatter].deserializeAll(rawMarkers) as Marker[];
-		const now = new Date().toISOString();
+		const foundMarkers = FORMATTERS[formatter].deserializeAll(rawMarkers) as Marker[];
 		const collection =
-			foundCollection ??
-			({
-				_id: ObjectId(),
-				videoId: await getVideoID(false)!,
-				type: 'Twitch',
-				author: user,
-				title: document.title,
-				description: '',
-				markers,
-				createdAt: now,
-				updatedAt: now,
-			} as Collection);
-		collection.markers = markers;
+			foundCollection ?? (await platform.createInitialCollection(foundMarkers, user));
+		collection.markers = foundMarkers;
 		return { collection, updatedAt };
 	})();
+	const collection = _collection;
 
 	if (collection === null) {
 		log('Error loading markers, abandoning');
@@ -111,27 +97,11 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	while (true) {
 		await delay(1000);
-		if (!document.querySelector('.video-ref [data-a-target="player-volume-slider"]')) {
-			log('Waiting for Volume...');
-			continue;
-		}
-		if (!document.querySelector(TOP_BAR_SELECTOR)) {
-			log('Waiting for Video Info Bar...');
-			continue;
-		}
-		if (document.querySelector('.video-ref [data-a-target="video-ad-countdown"]')) {
-			log('Waiting for Advertisement...');
-			await delay(5000);
-			continue;
-		}
-		if (isLive()) break;
-		if (isVOD() && document.querySelector('.video-ref .seekbar-bar')) break;
-
-		log('Waiting for player...');
+		if (await platform.isReady()) break;
 	}
 
 	addUninstallationStep(
-		(() => {
+		await (async () => {
 			const ui = document.createElement('details');
 			ui.className = 'r2_markers_ui';
 			ui.style.margin = '0.5em';
@@ -149,63 +119,28 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 			const markersButton = document.createElement('button');
 			markersButton.textContent = 'Menu';
-			markersButton.className = getButtonClass();
+			markersButton.className = platform.getButtonClass();
 			markersButton.style.flex = '1';
 			markersButton.addEventListener('click', () => menu());
 			wrapper.appendChild(markersButton);
 
 			const addMarker = document.createElement('button');
 			addMarker.textContent = 'Add';
-			addMarker.className = getButtonClass();
+			addMarker.className = platform.getButtonClass();
 			addMarker.style.flex = '1';
 			addMarker.addEventListener('click', () => addMarkerHere());
 			wrapper.appendChild(addMarker);
 
-			document.querySelector(TOP_BAR_SELECTOR + ' > div:last-of-type')!.appendChild(ui);
+			await platform.attachMenu(ui);
 			return () => ui.remove();
 		})()
 	);
-
-	/**
-	 * Get X and Y of the seconds provided
-	 *
-	 * @param {number} seconds
-	 * @returns {{ x: number, y: number, minX: number, maxX: number }}
-	 */
-	function getTimeXY(seconds: number) {
-		const bar = document.querySelector('.video-ref .seekbar-bar')!;
-
-		const rect = bar.getBoundingClientRect();
-		const minX = rect.left;
-		const maxX = rect.right;
-
-		const duration = Number(
-			document.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar-duration"]')!
-				.dataset.aValue
-		);
-		const percentage = seconds / duration;
-		const x = (maxX - minX) * percentage;
-		const y = (rect.bottom + rect.top) / 2;
-		return { x, y, minX, maxX };
-	}
-
-	/**
-	 * Set time to the seconds provided
-	 *
-	 * @param {number} seconds
-	 */
-	async function setTime(seconds: number) {
-		const bar = document.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar"]')!;
-		Object.entries(bar.parentNode!)
-			.find(([key]) => key.startsWith('__reactEventHandlers'))![1]
-			.children[2].props.onThumbLocationChange(seconds);
-	}
 
 	function seekToMarker(marker: Marker, e: Event) {
 		// Stop native seekbar behavior
 		e?.stopImmediatePropagation();
 		e?.stopPropagation();
-		return setTime(marker.when);
+		return platform!.seekTo(marker.when);
 	}
 
 	function startEditingMarker(marker: Marker, seconds: boolean, name: boolean, e: Event) {
@@ -222,7 +157,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	async function editMarkerSeconds(marker: Marker) {
 		const formatter = getUIFormatter();
-		const response = await dialog('prompt', 'Edit Time:', () => [
+		const response = await platform.dialog('prompt', 'Edit Time:', () => [
 			formatter.multiline ? 'textarea' : 'input',
 			formatter.serializeSeconds(marker.when),
 		]);
@@ -237,7 +172,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	async function editMarkerName(marker: Marker) {
 		const formatter = getUIFormatter();
-		const response = await dialog('prompt', 'Edit Name:', () => [
+		const response = await platform.dialog('prompt', 'Edit Name:', () => [
 			formatter.multiline ? 'textarea' : 'input',
 			formatter.serializeName(marker.title),
 		]);
@@ -252,7 +187,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	async function editMarker(marker: Marker) {
 		const formatter = getUIFormatter();
-		const response = await dialog('prompt', 'Edit Marker:', () => [
+		const response = await platform.dialog('prompt', 'Edit Marker:', () => [
 			formatter.multiline ? 'textarea' : 'input',
 			formatter.serializeAll([marker])[0],
 		]);
@@ -267,7 +202,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	async function editAllMarkers() {
 		const formatter = getUIFormatter();
-		const response = await dialog('prompt', 'Edit Serialized Markers', () => [
+		const response = await platform.dialog('prompt', 'Edit Serialized Markers', () => [
 			'textarea',
 			formatter.serializeAll(collection!.markers!),
 		]);
@@ -294,10 +229,12 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		dataChanged => {
 			if (dataChanged) updatedAt = new Date().toISOString();
 		},
-		() =>
-			loadFromLocalStorage().then(({ formatter }) =>
-				saveToLocalStorage(formatter, collection!, updatedAt)
-			),
+		async () => {
+			const eid = await platform.getEntityID();
+			return loadFromLocalStorage(eid).then(({ formatter }) =>
+				saveToLocalStorage(eid, formatter, collection!, updatedAt)
+			);
+		},
 		() => {
 			const summary = document.querySelector('.r2_markers_ui')?.querySelector('summary');
 			if (!summary) return;
@@ -307,211 +244,29 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		},
 	];
 
-	addUninstallationStep(
-		(() => {
-			const markerName = document.createElement('a') as HTMLAnchorElement;
-			markerName.href = '#';
-			markerName.style.cursor = 'hover';
-			markerName.style.paddingLeft = '1em';
-			markerName.className = 'r2_current_marker';
-			markerName.dataset.controlled = '';
-			if (isVOD()) {
-				markerName.style.cursor = 'pointer';
-				markerName.addEventListener('click', e => {
-					// Prevent anchor behavior
-					e.preventDefault();
-
-					setTime(Number(markerName.dataset.seconds));
-				});
-			}
-			markerName.addEventListener('contextmenu', e => {
-				// Stop context menu
-				e.preventDefault();
-				markerList.setMarkerList(true);
-			});
-
-			document
-				.querySelector<HTMLElement>('.video-ref [data-a-target="player-volume-slider"]')!
-				.parentNode!.parentNode!.parentNode!.parentNode!.appendChild(markerName);
-
-			const markerTitleInterval = setInterval(async () => {
-				if (markerName.dataset.controlled) return;
-
-				let marker;
-				if (isVOD()) {
-					const now = await getCurrentTimeLive();
-					marker = collection!.markers.filter(m => Math.floor(m.when) <= now).slice(-1)[0];
-				} else {
-					marker = collection!.markers[collection!.markers.length - 1];
-				}
-				if (!marker)
-					marker = {
-						title: '',
-						when: -1,
-					};
-
-				markerName.textContent = marker.title;
-				markerName.dataset.seconds = marker.when.toString();
-			}, 1000);
-
-			return () => {
-				clearInterval(markerTitleInterval);
-				markerName.remove();
-			};
-		})()
-	);
-
-	if (isVOD()) {
-		addUninstallationStep(
-			(() => {
-				const xToSeconds = (x: number) => {
-					const rect = bar.getBoundingClientRect();
-					const percentage = x / rect.width;
-					const duration = Number(
-						document.querySelector<HTMLElement>(
-							'.video-ref [data-a-target="player-seekbar-duration"]'
-						)!.dataset.aValue
-					);
-					const seconds = duration * percentage;
-					return seconds;
-				};
-				const handleMouseOver = (e: MouseEvent) => {
-					if (e.target === bar) return;
-					const markerName = document.querySelector<HTMLElement>('.video-ref .r2_current_marker')!;
-					markerName.dataset.controlled = 'true';
-
-					// @ts-ignore
-					const seconds = xToSeconds(e.layerX);
-
-					const marker =
-						collection!.markers.filter(m => Math.floor(m.when) <= seconds).slice(-1)[0] ?? null;
-
-					if (!marker || markerName.dataset.seconds === marker.when.toString()) return;
-					markerName.textContent = marker.title;
-					markerName.dataset.seconds = marker.when.toString();
-				};
-
-				const handleMouseLeave = () => {
-					document.querySelector<HTMLElement>('.video-ref .r2_current_marker')!.dataset.controlled =
-						'';
-				};
-
-				const bar = document.querySelector('.video-ref .seekbar-bar')!.parentNode! as HTMLElement;
-				bar.addEventListener('mouseover', handleMouseOver);
-				bar.addEventListener('mouseleave', handleMouseLeave);
-				return () => {
-					bar.removeEventListener('mouseover', handleMouseOver);
-					bar.removeEventListener('mouseleave', handleMouseLeave);
-				};
-			})()
-		);
-
-		addUninstallationStep(
-			(() => {
-				const handleWheel = async (e: WheelEvent) => {
-					e.preventDefault();
-					const change = Math.min(Math.max(e.deltaY, -1), 1);
-					await setTime((await getCurrentTimeLive()) + change);
-				};
-				const bar = document.querySelector('.video-ref .seekbar-bar')!.parentNode as HTMLElement;
-				bar.addEventListener('wheel', handleWheel);
-				return () => {
-					bar.removeEventListener('wheel', handleWheel);
-				};
-			})()
-		);
-		/**
-		 * Remove marker DOM elements, done before rendering and uninstall
-		 */
-		const removeDOMMarkers = () => {
-			document.querySelectorAll('.video-ref .r2_marker').forEach(e => e.remove());
-		};
-
-		markerChangeHandlers.push(function renderMarkers() {
-			removeDOMMarkers();
-			const bar = document.querySelector<HTMLElement>('.video-ref .seekbar-bar')!;
-			for (const marker of collection!.markers) {
-				const node = document.createElement('button');
-				node.className = 'r2_marker';
-				node.title = marker.title;
-				node.style.position = 'absolute';
-				node.style.width = '1.75px';
-				node.style.height = '10px';
-				node.style.backgroundColor = 'black';
-
-				node.style.left = getTimeXY(marker.when).x + 'px';
-
-				node.addEventListener('click', seekToMarker.bind(null, marker));
-				node.addEventListener('contextmenu', startEditingMarker.bind(null, marker, true, true));
-				bar.appendChild(node);
-			}
-		});
-
-		// Pull current time from DHMS display, it's always accurate in VODs
-		getCurrentTimeLive = async () =>
-			DHMStoSeconds(
-				document
-					.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar-current-time"]')!
-					.textContent!.split(':')
-					.map(Number)
-			);
-		addUninstallationStep(removeDOMMarkers);
-	} else if (isLive()) {
-		let cachedDelay = [0, 0];
-
-		/**
-		 * Return the number of seconds of delay as reported by Twitch
-		 *
-		 * @returns {number}
-		 */
-		async function getLiveDelay(): Promise<number> {
-			const now = Date.now();
-			if (now - cachedDelay[0] < 60000) return Promise.resolve(cachedDelay[1]);
-			const latency = document.querySelector('.video-ref [aria-label="Latency To Broadcaster"]');
-			const bufferSize = document.querySelector('.video-ref [aria-label="Buffer Size"]');
-			if (!latency || !bufferSize) {
-				// Settings Gear -> Advanced -> Video Stats Toggle
-				await clickNodes(
-					'[data-a-target="player-settings-button"]',
-					'[data-a-target="player-settings-menu-item-advanced"]',
-					'[data-a-target="player-settings-submenu-advanced-video-stats"] input'
-				);
-				return getLiveDelay();
-			}
-
-			// Video Stats Toggle -> Settings Gear
-			clickNodes(
-				'[data-a-target="player-settings-submenu-advanced-video-stats"] input',
-				'[data-a-target="player-settings-button"]'
-			);
-			const delay = [latency, bufferSize]
-				.map(e => Number(e.textContent!.split(' ')[0]))
-				.reduce((sum, s) => sum + s);
-
-			cachedDelay = [now, delay];
-			return delay;
-		}
-
-		getCurrentTimeLive = async () => {
-			const { delay, response: secondsDelay } = await trackDelay(async () => getLiveDelay());
-			const currentTime = DHMStoSeconds(
-				document.querySelector<HTMLElement>('.live-time')!.textContent!.split(':').map(Number)
-			);
-			const actualTime = currentTime - secondsDelay - delay / 1000;
-			return actualTime;
-		};
-	}
-
 	const markerList = generateMarkerList(
 		collection!.markers,
+		platform,
 		getCurrentTimeLive,
 		handleMarkerUpdate,
-		setTime,
+		platform!.seekTo,
 		startEditingMarker,
 		seekToMarker
 	);
 	addUninstallationStep(markerList.uninstallMarkerList);
 	markerChangeHandlers.push(markerList.renderMarkerList);
+
+	for await (const uninstaller of platform.generateUniqueAttachments(collection!, markerList)) {
+		addUninstallationStep(uninstaller);
+	}
+
+	for await (const markerChangeHandler of platform.generateMarkerChangeHandlers(
+		collection!,
+		seekToMarker,
+		startEditingMarker
+	)) {
+		markerChangeHandlers.push(markerChangeHandler);
+	}
 
 	async function handleMarkerUpdate(dataChanged: boolean) {
 		for (const func of markerChangeHandlers) await func(dataChanged);
@@ -528,7 +283,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 */
 	const addMarkerHere = async () => {
 		let seconds = await getCurrentTimeLive();
-		let name = await dialog('prompt', 'Marker Name');
+		let name = await platform.dialog('prompt', 'Marker Name');
 		if (!name) return;
 
 		if (['t+', 't-'].some(cmd => name.toLowerCase().startsWith(cmd))) {
@@ -545,10 +300,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			title: name,
 			description: '',
 		});
-		if (isLive())
-			writeToClipboard(
-				`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(seconds)}`
-			);
+		if (platform.isLive()) writeToClipboard(await platform.generateMarkerURL(seconds));
 		return handleMarkerUpdate(true);
 	};
 
@@ -557,13 +309,13 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 */
 	const exportToClipboard = async () => {
 		await writeToClipboard(getUIFormatter().serializeAll(collection!.markers));
-		return dialog('alert', 'Exported to Clipboard!');
+		return platform.dialog('alert', 'Exported to Clipboard!');
 	};
 
 	const exportToCloud = async () => {
 		if (!collection!.author) collection!.author = user!;
 		if (collection!.author?._id !== user!._id) {
-			await dialog(
+			await platform.dialog(
 				'choose',
 				`Export your own copy of ${collection!.author.username}s collection?`,
 				() => ({
@@ -573,48 +325,54 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			);
 			collection!.author = user!;
 		}
-		const newTitle = await dialog('prompt', 'Collection Title', () => ['input', collection!.title]);
+		const newTitle = await platform.dialog('prompt', 'Collection Title', () => [
+			'input',
+			collection!.title,
+		]);
 		if (!newTitle) return;
 		collection!.title = newTitle;
 
-		const newDescription = await dialog('prompt', 'Collection Description', () => [
+		const newDescription = await platform.dialog('prompt', 'Collection Description', () => [
 			'textarea',
 			collection!.description,
 		]);
 		if (!newDescription) return;
 		collection!.description = newDescription;
 
-		const newPublicity = await dialog('choose', 'Collection Publicity', () => ({
+		const newPublicity = await platform.dialog('choose', 'Collection Publicity', () => ({
 			Public: 'public',
 			Private: 'private',
 		}));
 		if (newPublicity === 'public') collection!.public = true;
 		else if (newPublicity === 'private' && collection!.public) delete collection!.public;
 
-		collection = await upsertCollection(collection!);
+		const updatedCollection = await upsertCollection(collection!);
+		if (!updatedCollection) return;
+
+		Object.assign(collection, updatedCollection);
 		updatedAt = collection.updatedAt;
 
 		await handleMarkerUpdate(false);
 
-		return dialog('alert', 'Exported to Cloud!');
+		return platform.dialog('alert', 'Exported to Cloud!');
 	};
 
 	const importMenu = async () => {
-		const collectionId = await dialog('choose', 'Import from...', () =>
+		const collectionId = await platform.dialog('choose', 'Import from...', () =>
 			otherCollections.reduce((acc, collection) => {
 				acc[`[${collection.author}] ${collection.title}`] = collection._id;
 				return acc;
 			}, {} as Record<string, string>)
 		);
 		if (!collectionId) return;
-		collection = (await getCollection(collectionId))!;
+		Object.assign(collection, (await getCollection(collectionId))!);
 	};
 
 	const importExportMenu = async () => {
-		otherCollections = await getCollections('Twitch', (await getVideoID(false))!);
+		otherCollections = await getCollections(platform.name, await platform.getEntityID());
 		if (!otherCollections.length) return exportMenu();
 
-		const choice = await dialog('choose', 'Import/Export', () => ({
+		const choice = await platform.dialog('choose', 'Import/Export', () => ({
 			[`Import (${otherCollections.length})`]: 'i',
 			Export: 'e',
 		}));
@@ -625,7 +383,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	const exportMenu = async () => {
 		if (!user) return exportToClipboard();
-		const choice = await dialog('choose', 'Destination', () => ({
+		const choice = await platform.dialog('choose', 'Destination', () => ({
 			Clipboard: 'b',
 			Cloud: 'c',
 		}));
@@ -635,17 +393,17 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	};
 
 	const login = async () => {
-		const username = await dialog('prompt', 'Username');
+		const username = await platform.dialog('prompt', 'Username');
 		if (!username) return;
 
-		const password = await dialog('prompt', 'Password');
+		const password = await platform.dialog('prompt', 'Password');
 		if (!password) return;
 
 		try {
 			await generateToken(username, password);
 			user = await getCurrentUser();
 		} catch (e: any) {
-			return dialog('alert', e.toString());
+			return platform.dialog('alert', e.toString());
 		}
 	};
 
@@ -653,7 +411,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 * Menu for importing or exporting
 	 */
 	const menu = async () => {
-		const choice = await dialog('choose', 'R2 Twitch User-Markers', () => ({
+		const choice = await platform.dialog('choose', 'R2 Twitch User-Markers', () => ({
 			'Import/Export': 'x',
 			Edit: 'e',
 			List: 'l',

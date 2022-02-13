@@ -1,6 +1,6 @@
 import { NOOP, chToPx, attachEscapeHandler, delay, secondsToDHMS } from './helpers';
-import { generateTwitchTimestamp, getButtonClass, getVideoID, isVOD } from './twitch';
-import { Marker } from './types';
+import { isVOD } from './twitch';
+import { Cacheable, IPlatform, Marker } from './types';
 
 let openDialogs = 0;
 
@@ -16,11 +16,13 @@ export function changeDialogCount(change: number) {
 /**
  * Show customizable dialog
  *
+ * @param {string} buttonClass
  * @param {'alert' | 'prompt' | 'choose'} type
  * @param {string} message
  * @param {(form: HTMLFormElement) => any} sideEffect
  */
 export async function dialog(
+	buttonClass: string,
 	type: 'alert' | 'prompt' | 'choose',
 	message: string,
 	sideEffect?: (form: HTMLFormElement) => any
@@ -87,7 +89,7 @@ export async function dialog(
 				form.appendChild(
 					Object.entries(sideEffect!(form)).reduce((fragment, [key, value]) => {
 						const button = document.createElement('button');
-						button.className = getButtonClass();
+						button.className = buttonClass;
 						button.textContent = key;
 						button.value = JSON.stringify(value);
 						button.addEventListener('click', () => (form.dataset.value = button.value));
@@ -113,14 +115,14 @@ export async function dialog(
 		actions.style.flex = '1';
 		actions.style.display = 'flex';
 		const submit = document.createElement('button');
-		submit.className = getButtonClass();
+		submit.className = buttonClass;
 		submit.style.flex = '1';
 		submit.textContent = 'OK';
 		submit.type = 'submit';
 		actions.appendChild(submit);
 
 		const cancel = document.createElement('button');
-		cancel.className = getButtonClass();
+		cancel.className = buttonClass;
 		cancel.style.flex = '1';
 		cancel.textContent = 'Cancel';
 		cancel.addEventListener('click', () => (canceled = true));
@@ -143,6 +145,7 @@ export async function dialog(
 
 export const generateMarkerList = (
 	markers: Marker[],
+	platform: IPlatform & Cacheable,
 	getCurrentTimeLive: () => Promise<number>,
 	handleMarkerUpdate: (dataChanged: boolean) => Promise<void>,
 	setTime: (seconds: number) => Promise<void>,
@@ -316,7 +319,7 @@ export const generateMarkerList = (
 			});
 
 			const closeButton = document.createElement('button');
-			closeButton.className = getButtonClass();
+			closeButton.className = platform.getButtonClass();
 			closeButton.style.float = 'right';
 			closeButton.textContent = 'Close';
 			closeButton.addEventListener('click', () => setMarkerList(false));
@@ -379,7 +382,7 @@ export const generateMarkerList = (
 				});
 
 				const decrease = document.createElement('button');
-				decrease.className = getButtonClass();
+				decrease.className = platform.getButtonClass();
 				decrease.textContent = '-';
 				decrease.title = 'Subtract 1 second';
 				decrease.addEventListener('click', e => {
@@ -405,7 +408,7 @@ export const generateMarkerList = (
 				time.appendChild(timeText);
 
 				const increase = document.createElement('button');
-				increase.className = getButtonClass();
+				increase.className = platform.getButtonClass();
 				increase.textContent = '+';
 				increase.title = 'Add 1 second';
 				increase.addEventListener('click', e => {
@@ -444,16 +447,12 @@ export const generateMarkerList = (
 				li.querySelector<HTMLButtonElement>('button.r2_marker_share') ||
 				document.createElement('button');
 			if (!existingLi) {
-				share.className = getButtonClass();
+				share.className = platform.getButtonClass();
 				share.classList.add('r2_marker_share');
 				share.style.float = 'right';
 				share.textContent = 'Share';
 				share.addEventListener('click', async e =>
-					navigator.clipboard.writeText(
-						`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(
-							getElementMarker(e)!.when
-						)}`
-					)
+					navigator.clipboard.writeText(await platform.generateMarkerURL(getElementMarker(e)!.when))
 				);
 				li.appendChild(share);
 			}
@@ -462,7 +461,7 @@ export const generateMarkerList = (
 				li.querySelector<HTMLButtonElement>('button.r2_marker_delete') ||
 				document.createElement('button');
 			if (!existingLi) {
-				deleteBtn.className = getButtonClass();
+				deleteBtn.className = platform.getButtonClass();
 				deleteBtn.classList.add('r2_marker_delete');
 				deleteBtn.style.float = 'right';
 				deleteBtn.textContent = 'Delete';
@@ -478,7 +477,7 @@ export const generateMarkerList = (
 
 		if (!existingList) {
 			const closeButton = document.createElement('button');
-			closeButton.className = getButtonClass();
+			closeButton.className = platform.getButtonClass();
 			closeButton.style.float = 'right';
 			closeButton.textContent = 'Close';
 			closeButton.addEventListener('click', () => setMarkerList(false));

@@ -1,6 +1,7 @@
 import { FORMATTERS } from './formatters';
-import { getVideoID } from './twitch';
-import { Collection } from './types';
+import { Twitch } from './twitch';
+import { Cacheable, Collection, IPlatform } from './types';
+import { YouTube } from './youtube';
 
 export function log(...args: any) {
 	console.log('[R2 Twitch User-Markers]', ...args);
@@ -119,25 +120,26 @@ export function attachEscapeHandler(action: () => void, check = () => true) {
 	return () => window.removeEventListener('keydown', handler);
 }
 
-export async function loadFromLocalStorage(): Promise<{
+export async function loadFromLocalStorage(entityID: string): Promise<{
 	formatter: keyof typeof FORMATTERS;
 	rawMarkers: string;
 	collection?: Collection;
 	updatedAt: string;
 }> {
 	return JSON.parse(
-		localStorage.getItem('r2_twitch_user_markers_v2_' + (await getVideoID(false))) ??
+		localStorage.getItem('r2_twitch_user_markers_v2_' + entityID) ??
 			JSON.stringify({ formatter: 'json', rawMarkers: '[]', updatedAt: new Date().toISOString() })
 	);
 }
 
 export async function saveToLocalStorage(
+	entityID: string,
 	formatter: keyof typeof FORMATTERS,
 	{ markers, ...collection }: Collection,
 	updatedAt: string
 ) {
 	localStorage.setItem(
-		'r2_twitch_user_markers_v2_' + (await getVideoID(false)),
+		'r2_twitch_user_markers_v2_' + entityID,
 		JSON.stringify({
 			formatter,
 			rawMarkers: FORMATTERS[formatter].serializeAll(markers),
@@ -183,3 +185,10 @@ export const ObjectId = (when: number = Date.now()) => {
 		' '.repeat(16).replace(/./g, () => timestampToHex(Math.random() * 16))
 	);
 };
+
+
+
+export function getPlatform(): IPlatform & Cacheable {
+	if (window.location.hostname === 'www.twitch.tv') return new Twitch();
+	return new YouTube();
+}

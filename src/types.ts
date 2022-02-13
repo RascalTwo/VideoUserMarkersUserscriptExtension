@@ -1,3 +1,5 @@
+import { dialog, generateMarkerList } from './ui';
+
 export interface Marker {
 	_id: string;
 	collectionId: string;
@@ -24,4 +26,41 @@ export interface Collection {
 	updatedAt: string;
 	public?: boolean;
 	markers: Marker[];
+}
+
+export interface IPlatform {
+	name: 'Twitch' | 'YouTube';
+	isReady(): Promise<boolean>;
+	attachMenu(details: HTMLDetailsElement): Promise<void>;
+	seekTo(seconds: number): Promise<void>;
+	generateUniqueAttachments(
+		collection: Collection,
+		markerList: ReturnType<typeof generateMarkerList>
+	): AsyncGenerator<() => void | Promise<void>>;
+	generateMarkerChangeHandlers(
+		collection: Collection,
+		seekToMarker: (marker: Marker, e: Event) => Promise<void>,
+		startEditingMarker: (marker: Marker, seconds: boolean, name: boolean, e: Event) => Promise<void>
+	): AsyncGenerator<() => void>;
+	getCurrentTimeLive(): Promise<number>;
+	generateMarkerURL(seconds: number): Promise<string>;
+	getEntityID(): Promise<string>;
+	shouldActivate(): boolean;
+	getButtonClass(): string;
+	isLive(): boolean;
+	dialog(...args: ParametersExceptFirst<typeof dialog>): ReturnType<typeof dialog>;
+	createInitialCollection(foundMarkers: Marker[], currentUser: User | null): Promise<Collection>;
+}
+
+export type ParametersExceptFirst<F> = F extends (arg0: any, ...rest: infer R) => any ? R : never;
+
+export class Cacheable {
+	cache: Map<string, any>;
+	constructor() {
+		this.cache = new Map();
+	}
+
+	clear() {
+		this.cache.clear();
+	}
 }
