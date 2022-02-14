@@ -1,4 +1,5 @@
 import {
+	applyThemedStyles,
 	clickNodes,
 	delay,
 	DHMStoSeconds,
@@ -156,8 +157,7 @@ export class Twitch extends Cacheable implements IPlatform {
 			)
 			.then(r => r.json())
 			.then(json => {
-				log('TODO: get stream ID and use that if there is no VOD ID', json.data.user.stream);
-				const vid = json.data.user.stream.archiveVideo?.id ?? null;
+				const vid = json.data.user.stream.archiveVideo?.id ?? json.data.user.stream.id;
 				this.cache.set('vid', vid);
 				log('GQL VOD ID:', vid);
 				return vid;
@@ -236,7 +236,7 @@ export class Twitch extends Cacheable implements IPlatform {
 		seekToMarker: (marker: Marker, e: Event) => Promise<void>,
 		startEditingMarker: (marker: Marker, seconds: boolean, name: boolean, e: Event) => Promise<void>
 	) {
-		yield () => {
+		if (isVOD()) yield () => {
 			this.removeDOMMarkers();
 			const bar = document.querySelector<HTMLElement>('.video-ref .seekbar-bar')!;
 			for (const marker of collection!.markers) {
@@ -246,7 +246,7 @@ export class Twitch extends Cacheable implements IPlatform {
 				node.style.position = 'absolute';
 				node.style.width = '1.75px';
 				node.style.height = '10px';
-				node.style.backgroundColor = 'black';
+				applyThemedStyles(node.style);
 
 				node.style.left = this.getTimeXY(marker.when).x + 'px';
 

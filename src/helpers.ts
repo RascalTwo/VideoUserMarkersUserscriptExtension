@@ -12,6 +12,20 @@ export function log(...args: any) {
  */
 export function NOOP() {}
 
+export function isDarkMode(){
+	return window.matchMedia('(prefers-color-scheme: dark)').matches;
+}
+
+export function applyThemedStyles(styles: CSSStyleDeclaration, isDark = isDarkMode()){
+	Object.assign(styles, isDark ? {
+		backgroundColor: '#18181b',
+		color: 'white',
+	} : {
+		backgroundColor: 'white',
+		color: '#18181b',
+	});
+}
+
 /**
  * Get the Pixel width of the `ch` unit
  *
@@ -188,7 +202,8 @@ export const ObjectId = (when: number = Date.now()) => {
 
 
 
-export function getPlatform(): IPlatform & Cacheable {
+export function getPlatform(): (IPlatform & Cacheable) | null {
 	if (window.location.hostname === 'www.twitch.tv') return new Twitch();
-	return new YouTube();
+	if (window.location.hostname === 'www.youtube.com') return new YouTube();
+	return null;
 }

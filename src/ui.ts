@@ -1,4 +1,4 @@
-import { NOOP, chToPx, attachEscapeHandler, delay, secondsToDHMS } from './helpers';
+import { NOOP, chToPx, attachEscapeHandler, delay, secondsToDHMS, applyThemedStyles, isDarkMode, log } from './helpers';
 import { isVOD } from './twitch';
 import { Cacheable, IPlatform, Marker } from './types';
 
@@ -33,15 +33,15 @@ export async function dialog(
 		let canceled = false;
 
 		const form = document.createElement('form');
+		form.id = 'r2_dialog';
 		form.style.position = 'absolute';
 		form.style.zIndex = (9000 + openDialogs).toString();
 		form.style.top = '50%';
 		form.style.left = '50%';
 		form.style.transform = 'translate(-50%, -50%)';
-		form.style.backgroundColor = '#18181b';
 		form.style.padding = '1em';
 		form.style.borderRadius = '1em';
-		form.style.color = 'white';
+		applyThemedStyles(form.style);
 		form.style.display = 'flex';
 		form.style.flexDirection = 'column';
 		form.textContent = message;
@@ -260,10 +260,8 @@ export const generateMarkerList = (
 			list.className = 'r2_marker_list';
 			list.style.position = 'absolute';
 			list.style.zIndex = (9000 + getDialogCount()).toString();
-			list.style.backgroundColor = '#18181b';
 			list.style.padding = '1em';
 			list.style.borderRadius = '1em';
-			list.style.color = 'white';
 			list.style.display = 'flex';
 			list.style.gap = '0.5em';
 			list.style.flexDirection = 'column';
@@ -272,16 +270,17 @@ export const generateMarkerList = (
 			list.style.overflow = 'scroll';
 			list.style.overflowX = 'auto';
 			list.style.resize = 'both';
+			applyThemedStyles(list.style);
 
 			list.style.top = last.top + 'px';
 			list.style.left = last.left + 'px';
 
 			const header = document.createElement('h4');
 			header.textContent = 'Marker List';
-			header.style.backgroundColor = '#08080b';
 			header.style.userSelect = 'none';
 			header.style.padding = '0';
 			header.style.margin = '0';
+			applyThemedStyles(header.style)
 
 			let dragging = false;
 			list.addEventListener('mousedown', e => {
@@ -338,19 +337,17 @@ export const generateMarkerList = (
 		const places = secondsToDHMS(markers![markers!.length - 1]?.when ?? 0).split(':').length;
 
 		function getElementMarker(e: { target: EventTarget | null }) {
-			const seconds = Number(
-				(e.target! as HTMLElement).closest<HTMLElement>('[data-seconds]')!.dataset.seconds
-			);
-			return markers!.find(marker => marker.when === seconds);
+			const id = (e.target! as HTMLElement).closest<HTMLElement>('[data-id]')!.dataset.id
+			return markers!.find(marker => marker._id === id);
 		}
 
 		const makeActive = (li: HTMLLIElement, seekTo: boolean = true) => {
 			list.querySelectorAll<HTMLLIElement>('li[data-r2_active_marker="true"]').forEach(otherLi => {
 				delete otherLi.dataset.r2_active_marker;
-				otherLi.style.backgroundColor = '';
+				otherLi.style.outline = '';
 			});
 			li.dataset.r2_active_marker = 'true';
-			li.style.backgroundColor = 'black';
+			li.style.outline = '1px dashed ' + (isDarkMode() ? 'white' : 'black')
 			li.scrollIntoView();
 			if (seekTo && isVOD()) return setTime(getElementMarker({ target: li })!.when);
 		};
@@ -358,7 +355,7 @@ export const generateMarkerList = (
 		for (const [i, marker] of markers!.entries()) {
 			const existingLi = list.querySelectorAll('li')[i];
 			const li = existingLi || document.createElement('li');
-			li.dataset.seconds = marker.when.toString();
+			li.dataset.id = marker._id;
 			if (!existingLi) {
 				li.style.display = 'flex';
 				li.style.gap = '1em';
@@ -485,9 +482,10 @@ export const generateMarkerList = (
 
 			document.body.appendChild(list);
 
-			delay(0)
+			delay(100)
 				.then(() => getCurrentMarkerLI(list))
 				.then(li => {
+					log({ currentMarkerLI: li });
 					if (!li) return;
 					li.scrollIntoView();
 					makeActive(li, false);
@@ -520,7 +518,7 @@ export const generateMarkerList = (
 				: getCurrentMarkerLI(list).then(li => {
 						if (!li) return;
 
-						li.style.backgroundColor = 'black';
+						applyThemedStyles(li.style);
 						if (li === lastLi) return;
 						if (lastLi) lastLi.style.backgroundColor = '';
 						lastLi = li;

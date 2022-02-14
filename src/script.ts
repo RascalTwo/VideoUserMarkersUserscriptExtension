@@ -18,6 +18,7 @@ import {
 	ObjectId,
 	NOOP,
 	getPlatform,
+	isDarkMode,
 } from './helpers';
 import { generateMarkerList as generateMarkerList } from './ui';
 import type { Marker } from './types';
@@ -51,6 +52,8 @@ log('Script Started');
 		log('Unsupported platform');
 		return NOOP;
 	}
+	
+	log('Platform:', platform.name);
 
 	while (document.readyState !== 'complete') {
 		await delay(1000);
@@ -106,7 +109,7 @@ log('Script Started');
 			ui.className = 'r2_markers_ui';
 			ui.style.margin = '0.5em';
 			ui.style.padding = '0.5em';
-			ui.style.border = '1px solid white';
+			ui.style.border = '1px solid ' + (isDarkMode() ? 'white' : 'black');
 
 			const summary = document.createElement('summary');
 			summary.textContent = 'R2 Markers';
@@ -157,7 +160,7 @@ log('Script Started');
 
 	async function editMarkerSeconds(marker: Marker) {
 		const formatter = getUIFormatter();
-		const response = await platform.dialog('prompt', 'Edit Time:', () => [
+		const response = await platform!.dialog('prompt', 'Edit Time:', () => [
 			formatter.multiline ? 'textarea' : 'input',
 			formatter.serializeSeconds(marker.when),
 		]);
@@ -172,7 +175,7 @@ log('Script Started');
 
 	async function editMarkerName(marker: Marker) {
 		const formatter = getUIFormatter();
-		const response = await platform.dialog('prompt', 'Edit Name:', () => [
+		const response = await platform!.dialog('prompt', 'Edit Name:', () => [
 			formatter.multiline ? 'textarea' : 'input',
 			formatter.serializeName(marker.title),
 		]);
@@ -187,7 +190,7 @@ log('Script Started');
 
 	async function editMarker(marker: Marker) {
 		const formatter = getUIFormatter();
-		const response = await platform.dialog('prompt', 'Edit Marker:', () => [
+		const response = await platform!.dialog('prompt', 'Edit Marker:', () => [
 			formatter.multiline ? 'textarea' : 'input',
 			formatter.serializeAll([marker])[0],
 		]);
@@ -202,7 +205,7 @@ log('Script Started');
 
 	async function editAllMarkers() {
 		const formatter = getUIFormatter();
-		const response = await platform.dialog('prompt', 'Edit Serialized Markers', () => [
+		const response = await platform!.dialog('prompt', 'Edit Serialized Markers', () => [
 			'textarea',
 			formatter.serializeAll(collection!.markers!),
 		]);
@@ -212,7 +215,7 @@ log('Script Started');
 			collection!.markers!.length,
 			...(formatter.deserializeAll(response) as Marker[]).map((newMarker, i) => ({
 				...newMarker,
-				_id: collection!.markers![i]._id,
+				_id: collection!.markers![i]._id || ObjectId(),
 				collectionId: collection!.markers![i].collectionId,
 			}))
 		);
@@ -224,7 +227,6 @@ log('Script Started');
 	 *
 	 * @returns {number}
 	 */
-	let getCurrentTimeLive = async () => 0;
 	let markerChangeHandlers: ((dataChanged: boolean) => any)[] = [
 		dataChanged => {
 			if (dataChanged) updatedAt = new Date().toISOString();
@@ -247,7 +249,7 @@ log('Script Started');
 	const markerList = generateMarkerList(
 		collection!.markers,
 		platform,
-		getCurrentTimeLive,
+		platform.getCurrentTimeLive.bind(platform),
 		handleMarkerUpdate,
 		platform!.seekTo,
 		startEditingMarker,
@@ -282,7 +284,7 @@ log('Script Started');
 	 * Add marker to current time
 	 */
 	const addMarkerHere = async () => {
-		let seconds = await getCurrentTimeLive();
+		let seconds = await platform.getCurrentTimeLive();
 		let name = await platform.dialog('prompt', 'Marker Name');
 		if (!name) return;
 
