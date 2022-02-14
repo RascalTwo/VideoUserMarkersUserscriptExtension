@@ -1,17 +1,19 @@
 {
   "name": "r2_twitch_user_markers",
-  "version": "1.6.0",
+  "version": "1.6.1",
   "description": "",
   "scripts": {
     "prebuild": "node ./scripts/prebuild.js",
-    "build": "tsc",
-    "postbuild": "node ./scripts/postbuild.js",
+    "build": "webpack",
     "dev": "npx nodemon -e ts --exec 'npm run build' --watch src --ignore src/constants.ts"
   },
   "author": "",
   "license": "ISC",
   "dependencies": {
     "dotenv": "^16.0.3",
-    "typescript": "^4.5.4"
+    "ts-loader": "^9.4.1",
+    "typescript": "^4.5.4",
+    "webpack": "^5.75.0",
+    "webpack-cli": "^4.10.0"
   }
 }
