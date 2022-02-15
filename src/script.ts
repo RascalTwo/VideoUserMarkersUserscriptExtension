@@ -1,3 +1,4 @@
+//
 // ==UserScript==
 // @name     R2 Twitch User-Markers
 // @version  1
@@ -7,6 +8,7 @@
 // @run-at   document-start
 // @require  https://requirejs.org/docs/release/2.3.6/comments/require.js
 // ==/UserScript==
+//
 
 import { FORMATTERS, getUIFormatter } from './formatters';
 import {
@@ -52,7 +54,7 @@ log('Script Started');
 		log('Unsupported platform');
 		return NOOP;
 	}
-	
+
 	log('Platform:', platform.name);
 
 	while (document.readyState !== 'complete') {
@@ -63,12 +65,17 @@ log('Script Started');
 	platform.shouldActivate();
 	const addUninstallationStep = createUninstaller(
 		main,
-		platform.shouldActivate() ? undefined : platform.shouldActivate
+		platform.shouldActivate() ? undefined : platform.shouldActivate.bind(platform)
 	);
-	addUninstallationStep(platform.clear);
+	addUninstallationStep(platform.clear.bind(platform));
 	if (!platform.shouldActivate()) {
 		log(`Not Activating`);
 		return;
+	}
+
+	while (true) {
+		await delay(1000);
+		if (await platform.isReady()) break;
 	}
 
 	// Get last segment of URL, which is the video ID
@@ -85,10 +92,11 @@ log('Script Started');
 			platform.dialog('alert', `Formatter for saved content does not exist: ${formatter}`);
 			return { collection: null, updatedAt: '' };
 		}
-		const foundMarkers = FORMATTERS[formatter].deserializeAll(rawMarkers) as Marker[];
+		const foundMarkers = FORMATTERS[formatter].deserializeAll(rawMarkers || '[]') as Marker[];
 		const collection =
 			foundCollection ?? (await platform.createInitialCollection(foundMarkers, user));
-		collection.markers = foundMarkers;
+		if (foundMarkers.length) collection.markers = foundMarkers;
+		if (!collection.markers?.length) collection.markers = foundMarkers
 		return { collection, updatedAt };
 	})();
 	const collection = _collection;
@@ -96,11 +104,6 @@ log('Script Started');
 	if (collection === null) {
 		log('Error loading markers, abandoning');
 		return;
-	}
-
-	while (true) {
-		await delay(1000);
-		if (await platform.isReady()) break;
 	}
 
 	addUninstallationStep(
@@ -247,7 +250,7 @@ log('Script Started');
 	];
 
 	const markerList = generateMarkerList(
-		collection!.markers,
+		collection,
 		platform,
 		platform.getCurrentTimeLive.bind(platform),
 		handleMarkerUpdate,
@@ -258,7 +261,12 @@ log('Script Started');
 	addUninstallationStep(markerList.uninstallMarkerList);
 	markerChangeHandlers.push(markerList.renderMarkerList);
 
-	for await (const uninstaller of platform.generateUniqueAttachments(collection!, markerList)) {
+
+	async function handleMarkerUpdate(dataChanged: boolean) {
+		for (const func of markerChangeHandlers) await func(dataChanged);
+	}
+
+	for await (const uninstaller of platform.generateUniqueAttachments(collection!, markerList, handleMarkerUpdate)) {
 		addUninstallationStep(uninstaller);
 	}
 
@@ -268,10 +276,6 @@ log('Script Started');
 		startEditingMarker
 	)) {
 		markerChangeHandlers.push(markerChangeHandler);
-	}
-
-	async function handleMarkerUpdate(dataChanged: boolean) {
-		for (const func of markerChangeHandlers) await func(dataChanged);
 	}
 
 	const writeToClipboard = (text: string) => {
@@ -362,12 +366,13 @@ log('Script Started');
 	const importMenu = async () => {
 		const collectionId = await platform.dialog('choose', 'Import from...', () =>
 			otherCollections.reduce((acc, collection) => {
-				acc[`[${collection.author}] ${collection.title}`] = collection._id;
+				acc[`[${collection.author.username}] ${collection.title}`] = collection._id;
 				return acc;
 			}, {} as Record<string, string>)
 		);
 		if (!collectionId) return;
 		Object.assign(collection, (await getCollection(collectionId))!);
+		handleMarkerUpdate(true);
 	};
 
 	const importExportMenu = async () => {
@@ -440,12 +445,6 @@ log('Script Started');
 	};
 	window.addEventListener('keydown', keydownHandler);
 	addUninstallationStep(() => window.removeEventListener('keydown', keydownHandler));
-
-	const resizeObserver = new ResizeObserver(() => handleMarkerUpdate(false));
-	resizeObserver.observe(document.querySelector<HTMLVideoElement>('.video-ref video')!);
-	addUninstallationStep(() =>
-		resizeObserver.unobserve(document.querySelector<HTMLVideoElement>('.video-ref video')!)
-	);
 
 	if (collection!.markers.length) await handleMarkerUpdate(false);
 

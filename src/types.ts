@@ -35,7 +35,8 @@ export interface IPlatform {
 	seekTo(seconds: number): Promise<void>;
 	generateUniqueAttachments(
 		collection: Collection,
-		markerList: ReturnType<typeof generateMarkerList>
+		markerList: ReturnType<typeof generateMarkerList>,
+		handleMarkerUpdate: (dataChanged: boolean) => Promise<void>
 	): AsyncGenerator<() => void | Promise<void>>;
 	generateMarkerChangeHandlers(
 		collection: Collection,

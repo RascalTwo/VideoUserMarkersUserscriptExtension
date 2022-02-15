@@ -1,6 +1,5 @@
-import { NOOP, chToPx, attachEscapeHandler, delay, secondsToDHMS, applyThemedStyles, isDarkMode, log } from './helpers';
-import { isVOD } from './twitch';
-import { Cacheable, IPlatform, Marker } from './types';
+import { NOOP, chToPx, attachEscapeHandler, delay, secondsToDHMS, applyThemedStyles, isDarkMode } from './helpers';
+import { Cacheable, Collection, IPlatform, Marker } from './types';
 
 let openDialogs = 0;
 
@@ -144,7 +143,7 @@ export async function dialog(
 }
 
 export const generateMarkerList = (
-	markers: Marker[],
+	collection: Collection,
 	platform: IPlatform & Cacheable,
 	getCurrentTimeLive: () => Promise<number>,
 	handleMarkerUpdate: (dataChanged: boolean) => Promise<void>,
@@ -153,8 +152,8 @@ export const generateMarkerList = (
 	seekToMarker: (marker: Marker, e: Event) => Promise<void>
 ) => {
 	function deleteMarker(marker: Marker) {
-		const index = markers!.findIndex(m => m.when === marker.when);
-		markers!.splice(index, 1);
+		const index = collection.markers!.findIndex(m => m.when === marker.when);
+		collection.markers!.splice(index, 1);
 		return handleMarkerUpdate(true);
 	}
 
@@ -206,7 +205,7 @@ export const generateMarkerList = (
 		getCurrentTimeLive().then(
 			now =>
 				list.querySelectorAll('li')[
-					(markers!
+					(collection.markers!
 						.map((c, i) => [c, i] as [Marker, number])
 						.filter(([c]) => Math.floor(c.when) <= now)
 						.slice(-1)[0] ?? [null, -1])[1]
@@ -248,10 +247,10 @@ export const generateMarkerList = (
 					return adjustMarkerSeconds(
 						getElementMarker({ target: active })!,
 						key === 'a' ? -1 : 1
-					).then(marker => (isVOD() ? setTime(marker.when) : undefined));
+					).then(marker => (!platform.isLive() ? setTime(marker.when) : undefined));
 				} else if (key === 'n' && active) {
 					return startEditingMarker(getElementMarker({ target: active })!, false, true, e);
-				} else if (isVOD() && (key === 'q' || key === 'e'))
+				} else if (!platform.isLive() && (key === 'q' || key === 'e'))
 					getCurrentTimeLive().then(seconds => setTime(seconds + (key === 'q' ? -1 : 1)));
 			};
 			window.addEventListener('keydown', keydownHandler);
@@ -333,12 +332,12 @@ export const generateMarkerList = (
 			);
 		}
 
-		markers!.sort((a, b) => a.when - b.when);
-		const places = secondsToDHMS(markers![markers!.length - 1]?.when ?? 0).split(':').length;
+		collection.markers!.sort((a, b) => a.when - b.when);
+		const places = secondsToDHMS(collection.markers![collection.markers!.length - 1]?.when ?? 0).split(':').length;
 
 		function getElementMarker(e: { target: EventTarget | null }) {
 			const id = (e.target! as HTMLElement).closest<HTMLElement>('[data-id]')!.dataset.id
-			return markers!.find(marker => marker._id === id);
+			return collection.markers!.find(marker => marker._id === id);
 		}
 
 		const makeActive = (li: HTMLLIElement, seekTo: boolean = true) => {
@@ -348,11 +347,11 @@ export const generateMarkerList = (
 			});
 			li.dataset.r2_active_marker = 'true';
 			li.style.outline = '1px dashed ' + (isDarkMode() ? 'white' : 'black')
-			li.scrollIntoView();
-			if (seekTo && isVOD()) return setTime(getElementMarker({ target: li })!.when);
+			li.scrollIntoView({block: "nearest", inline: "nearest"});
+			if (seekTo && !platform.isLive()) return setTime(getElementMarker({ target: li })!.when);
 		};
 
-		for (const [i, marker] of markers!.entries()) {
+		for (const [i, marker] of collection.markers!.entries()) {
 			const existingLi = list.querySelectorAll('li')[i];
 			const li = existingLi || document.createElement('li');
 			li.dataset.id = marker._id;
@@ -375,24 +374,25 @@ export const generateMarkerList = (
 					return adjustMarkerSeconds(
 						getElementMarker(e)!,
 						Math.min(Math.max(e.deltaY, -1), 1)
-					).then(marker => (isVOD() ? setTime(marker.when) : undefined));
+					).then(marker => (!platform.isLive() ? setTime(marker.when) : undefined));
 				});
 
 				const decrease = document.createElement('button');
 				decrease.className = platform.getButtonClass();
+				decrease.style.display = 'inline-block';
 				decrease.textContent = '-';
 				decrease.title = 'Subtract 1 second';
 				decrease.addEventListener('click', e => {
 					makeActive(li);
 					adjustMarkerSeconds(getElementMarker(e)!, -1).then(marker =>
-						isVOD() ? setTime(marker.when) : undefined
+						!platform.isLive() ? setTime(marker.when) : undefined
 					);
 				});
 				time.appendChild(decrease);
 
 				const timeText = document.createElement('span');
 				timeText.textContent = timeContent;
-				if (isVOD()) {
+				if (!platform.isLive()) {
 					timeText.style.cursor = 'pointer';
 					timeText.addEventListener('click', e => {
 						makeActive(li);
@@ -406,12 +406,13 @@ export const generateMarkerList = (
 
 				const increase = document.createElement('button');
 				increase.className = platform.getButtonClass();
+				increase.style.display = 'inline-block';
 				increase.textContent = '+';
 				increase.title = 'Add 1 second';
 				increase.addEventListener('click', e => {
 					makeActive(li);
 					adjustMarkerSeconds(getElementMarker(e)!, 1).then(marker =>
-						isVOD() ? setTime(marker.when) : undefined
+						!platform.isLive() ? setTime(marker.when) : undefined
 					);
 				});
 				time.appendChild(increase);
@@ -426,7 +427,7 @@ export const generateMarkerList = (
 				title.className = 'r2_marker_title';
 				title.style.flex = '1';
 				title.style.textAlign = 'center';
-				if (isVOD()) {
+				if (!platform.isLive()) {
 					title.style.cursor = 'pointer';
 					title.addEventListener('click', e => {
 						makeActive(li);
@@ -485,7 +486,6 @@ export const generateMarkerList = (
 			delay(100)
 				.then(() => getCurrentMarkerLI(list))
 				.then(li => {
-					log({ currentMarkerLI: li });
 					if (!li) return;
 					li.scrollIntoView();
 					makeActive(li, false);

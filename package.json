@@ -1,6 +1,6 @@
 {
   "name": "r2_twitch_user_markers",
-  "version": "1.7.4",
+  "version": "1.7.5",
   "description": "",
   "scripts": {
     "prebuild": "node ./scripts/prebuild.js",
