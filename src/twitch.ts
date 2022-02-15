@@ -16,15 +16,6 @@ const GQL_HEADERS = {
 	'client-id': 'kimne78kx3ncx6brgo4mv6wki5h1ko',
 };
 
-/**
- * If the page is a VOD
- *
- * @returns {boolean}
- */
-export function isVOD() {
-	return window.location.pathname.startsWith('/videos');
-}
-
 export function generateTwitchTimestamp(seconds: number) {
 	const symbols = ['d', 'h', 'm'];
 	const dhms = Array.from(secondsToDHMS(seconds));
@@ -102,16 +93,16 @@ export class Twitch extends Cacheable implements IPlatform {
 	getLoginName() {
 		return this.isLive()
 			? // URL ends with loginName
-			  window.location.pathname.split('/')[1]
+			window.location.pathname.split('/')[1]
 			: // URL channel=loginName exists in `og:video` metadata
-			  new URLSearchParams(
-					document
-						.querySelector('meta[property="og:video"]')!
-						.getAttribute('content')!
-						.split('?')
-						.slice(1)
-						.join('?')
-			  ).get('channel');
+			new URLSearchParams(
+				document
+					.querySelector('meta[property="og:video"]')!
+					.getAttribute('content')!
+					.split('?')
+					.slice(1)
+					.join('?')
+			).get('channel');
 	}
 
 	/**
@@ -136,12 +127,20 @@ export class Twitch extends Cacheable implements IPlatform {
 				return userID;
 			});
 	}
+	/**
+	 * If the page is a VOD
+	 *
+	 * @returns {boolean}
+	 */
+	isVOD() {
+		return window.location.pathname.startsWith('/videos');
+	}
 	shouldActivate(): boolean {
-		return isVOD() || this.isLive();
+		return this.isVOD() || this.isLive();
 	}
 	async getEntityID(): Promise<string> {
 		// Get VID from URL if VOD
-		if (isVOD()) {
+		if (this.isVOD()) {
 			return window.location.href.split('/').slice(-1)[0].split('?')[0];
 		}
 		if (this.cache.has('vid')) return this.cache.get('vid');
@@ -179,7 +178,7 @@ export class Twitch extends Cacheable implements IPlatform {
 			return false;
 		}
 		if (this.isLive()) return true;
-		if (isVOD() && document.querySelector('.video-ref .seekbar-bar')) return true;
+		if (this.isVOD() && document.querySelector('.video-ref .seekbar-bar')) return true;
 
 		log('Waiting for player...');
 		return false;
@@ -236,7 +235,7 @@ export class Twitch extends Cacheable implements IPlatform {
 		seekToMarker: (marker: Marker, e: Event) => Promise<void>,
 		startEditingMarker: (marker: Marker, seconds: boolean, name: boolean, e: Event) => Promise<void>
 	) {
-		if (isVOD()) yield () => {
+		if (this.isVOD()) yield () => {
 			this.removeDOMMarkers();
 			const bar = document.querySelector<HTMLElement>('.video-ref .seekbar-bar')!;
 			for (const marker of collection!.markers) {
@@ -259,7 +258,8 @@ export class Twitch extends Cacheable implements IPlatform {
 
 	async *generateUniqueAttachments(
 		collection: Collection,
-		markerList: ReturnType<typeof generateMarkerList>
+		markerList: ReturnType<typeof generateMarkerList>,
+		handleMarkerUpdate: (dataChanged: boolean) => Promise<void>
 	) {
 		yield (() => {
 			const markerName = document.createElement('a') as HTMLAnchorElement;
@@ -268,7 +268,7 @@ export class Twitch extends Cacheable implements IPlatform {
 			markerName.style.paddingLeft = '1em';
 			markerName.className = 'r2_current_marker';
 			markerName.dataset.controlled = '';
-			if (isVOD()) {
+			if (this.isVOD()) {
 				markerName.style.cursor = 'pointer';
 				markerName.addEventListener('click', e => {
 					// Prevent anchor behavior
@@ -291,7 +291,7 @@ export class Twitch extends Cacheable implements IPlatform {
 				if (markerName.dataset.controlled) return;
 
 				let marker;
-				if (isVOD()) {
+				if (this.isVOD()) {
 					const now = await this.getCurrentTimeLive();
 					marker = collection!.markers.filter(m => Math.floor(m.when) <= now).slice(-1)[0];
 				} else {
@@ -313,7 +313,14 @@ export class Twitch extends Cacheable implements IPlatform {
 			};
 		})();
 
-		if (isVOD()) {
+		yield (() => {
+			const resizeObserver = new ResizeObserver(() => handleMarkerUpdate(false));
+			resizeObserver.observe(document.querySelector<HTMLVideoElement>('.video-ref video')!);
+			return () =>
+				resizeObserver.unobserve(document.querySelector<HTMLVideoElement>('.video-ref video')!)
+		})()
+
+		if (this.isVOD()) {
 			yield (() => {
 				const xToSeconds = (x: number) => {
 					const rect = bar.getBoundingClientRect();
@@ -407,7 +414,7 @@ export class Twitch extends Cacheable implements IPlatform {
 
 	// Pull current time from DHMS display, it's always accurate in VODs
 	async getCurrentTimeLive() {
-		if (isVOD())
+		if (this.isVOD())
 			return DHMStoSeconds(
 				document
 					.querySelector<HTMLElement>('.video-ref [data-a-target="player-seekbar-current-time"]')!
