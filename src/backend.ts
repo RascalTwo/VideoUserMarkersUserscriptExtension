@@ -6,10 +6,11 @@ function getUserToken() {
 }
 
 const makeBackendRequest = <T>(path: string, init?: RequestInit) => {
+	const token = getUserToken();
 	return fetch(BACKEND_API + path, {
 		...(init || {}),
 		headers: {
-			Authorization: `Bearer ${getUserToken()}`,
+			...(token ? { Authorization: `Bearer ${token}` } : {}),
 			...(init?.headers || {})
 		}
 	}).then(r => r.json() as Promise<T>).catch(err => {
