@@ -163,12 +163,22 @@ export async function saveToLocalStorage(
 	);
 }
 
+const urlsHaveChanged = (oldURL: string, newURL: string, ...ignoredSearchParams: string[]) => {
+	const oldURLSearchParams = new URLSearchParams(oldURL.split('?')[1]);
+	const newURLSearchParams = new URLSearchParams(newURL.split('?')[1]);
+	for (const ignoredParam of ignoredSearchParams) {
+		oldURLSearchParams.delete(ignoredParam);
+		newURLSearchParams.delete(ignoredParam);
+	}
+	return oldURL.split('?')[0] !== newURL.split('?')[0] || oldURLSearchParams.toString() !== newURLSearchParams.toString();
+}
+
 export function createUninstaller(reinstall: () => void, shouldReinstall?: () => boolean) {
 	const uninstallFuncs: (() => Promise<void> | void)[] = [
 		(function reinstallOnChange(shouldReinstall = () => false) {
 			const url = window.location.href;
 			const interval = setInterval(() => {
-				if (shouldReinstall() || window.location.href !== url) {
+				if (shouldReinstall() || urlsHaveChanged(window.location.href, url, 'index', 'list')) {
 					clearInterval(interval);
 					uninstall().then(reinstall);
 				}
