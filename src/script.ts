@@ -436,15 +436,15 @@ log('Script Started');
 	 *
 	 * @param {KeyboardEvent} e
 	 */
-	const keydownHandler = (e: KeyboardEvent) => {
+	const keypressHandler = (e: KeyboardEvent) => {
 		const target = e.target! as HTMLElement;
 		if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.getAttribute('role') === 'textbox')
 			return;
 		if (e.key === 'u') menu();
 		if (e.key === 'b') addMarkerHere();
 	};
-	window.addEventListener('keydown', keydownHandler);
-	addUninstallationStep(() => window.removeEventListener('keydown', keydownHandler));
+	window.addEventListener('keypress', keypressHandler);
+	addUninstallationStep(() => window.removeEventListener('keypress', keypressHandler));
 
 	if (collection!.markers.length) await handleMarkerUpdate(false);
 
