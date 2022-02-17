@@ -1,0 +1,22 @@
+{
+
+  "manifest_version": 2,
+  "name": "Video Markers",
+  "version": "1.9.0",
+  "description": "Allows the creation of time-based markers in videos",
+  "icons": {
+    "48": "border-48.png"
+  },
+  "browser_action": {
+    "default_popup": "action/popup.html"
+  },
+  "permissions": [
+    "activeTab"
+  ],
+  "content_scripts": [
+    {
+      "matches": ["*://*.twitch.tv/*", "*://*.youtube.com/*"],
+      "js": ["dist/inject.js"]
+    }
+  ]
+}

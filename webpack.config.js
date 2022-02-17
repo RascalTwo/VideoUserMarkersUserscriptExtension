@@ -6,7 +6,10 @@ const isProd = mode === 'production';
 
 module.exports = {
   mode,
-  entry: path.resolve('./src/script.ts'),
+  entry: {
+    userscript: path.resolve('./src/script.ts'),
+    '../webext/dist/userscript': path.resolve('./src/script.ts')
+  },
   devtool: isProd ? undefined : 'inline-source-map',
   module: {
     rules: [{
@@ -17,7 +20,7 @@ module.exports = {
   },
   resolve: { extensions: ['.ts'] },
   output: {
-    filename: 'userscript.js',
+    filename: '[name].js',
     path: path.resolve(__dirname, 'dist'),
   },
   plugins: isProd ? [] : [new webpack.SourceMapDevToolPlugin({
