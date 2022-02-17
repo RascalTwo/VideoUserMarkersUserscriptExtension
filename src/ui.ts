@@ -470,7 +470,14 @@ export const generateMarkerList = (
 				li.appendChild(deleteBtn);
 			}
 
-			if (!existingLi) list.appendChild(li);
+			if (!existingLi) {
+				const closeButton = list.querySelector(':scope > button')
+				if (closeButton) {
+					list.insertBefore(li, closeButton);
+				} else {
+					list.appendChild(li);
+				}
+			}
 		}
 
 		if (!existingList) {
