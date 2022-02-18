@@ -494,7 +494,7 @@ export const generateMarkerList = (
 				.then(() => getCurrentMarkerLI(list))
 				.then(li => {
 					if (!li) return;
-					li.scrollIntoView();
+					li.scrollIntoView({block: "nearest", inline: "nearest"});
 					makeActive(li, false);
 				});
 		}
