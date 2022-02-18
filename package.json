@@ -1,12 +1,12 @@
 {
   "name": "r2_twitch_user_markers",
-  "version": "1.10.2",
+  "version": "1.10.3",
   "description": "",
   "scripts": {
     "prebuild": "node ./scripts/prebuild.js",
     "build": "webpack",
     "dev": "npx nodemon -e ts --exec 'npm run build' --watch src --ignore src/constants.ts",
-    "test": "node ./scripts/test.js"
+    "test": "node ./scripts/test.js && c8 report --reporter=lcov --reporter=html --reporter=text --src=src"
   },
   "author": "",
   "license": "ISC",
