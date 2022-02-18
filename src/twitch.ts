@@ -1,3 +1,4 @@
+import { getCollections } from './backend';
 import {
 	applyThemedStyles,
 	clickNodes,
@@ -8,7 +9,7 @@ import {
 	secondsToDHMS,
 	trackDelay,
 } from './helpers';
-import { Collection, Marker, IPlatform, Cacheable, User } from './types';
+import { Collection, Marker, IPlatform, Cacheable, User, MarkerlessCollection } from './types';
 import { dialog, generateMarkerList } from './ui';
 
 const GQL_HEADERS = {
@@ -434,5 +435,13 @@ export class Twitch extends Cacheable implements IPlatform {
 		return `https://twitch.tv/videos/${await this.getEntityID()}?t=${generateTwitchTimestamp(
 			seconds
 		)}`;
+	}
+
+	async getCollections(): Promise<MarkerlessCollection[]> {
+		const initialCollection = await this.createInitialCollection([], null);
+		return [
+			...(initialCollection.markers.length ? [initialCollection] : []),
+			...await getCollections(this.name, await this.getEntityID())
+		];
 	}
 }

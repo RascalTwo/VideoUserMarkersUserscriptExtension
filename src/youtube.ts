@@ -1,5 +1,6 @@
+import { getCollections } from './backend';
 import { ObjectId } from './helpers';
-import { IPlatform, Cacheable, Collection, Marker, User } from './types';
+import { IPlatform, Cacheable, Collection, Marker, User, MarkerlessCollection } from './types';
 import { dialog } from './ui';
 
 interface YTDPlayerElement extends HTMLElement {
@@ -18,34 +19,50 @@ interface YTDPlayerElement extends HTMLElement {
 
 export class YouTube extends Cacheable implements IPlatform, Cacheable {
 	name: 'Twitch' | 'YouTube';
+	private initialCollection: Collection | null;
 	constructor() {
 		super();
 		this.name = 'YouTube';
+		this.initialCollection = null;
 	}
-	async createInitialCollection(foundMarkers: Marker[], currentUser: User): Promise<Collection> {
+	async createInitialCollection(foundMarkers: Marker[], currentUser: User | null): Promise<Collection> {
 		const now = new Date().toISOString();
 
 		const collectionId = ObjectId();
 
-		const markers = foundMarkers.length ? foundMarkers : this.getYTPlayerElement()!.get('watchNextData').playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap[0].value.chapters.map((chapter: any) => ({
-			_id: ObjectId(),
-			collectionId,
-			when: chapter.chapterRenderer.timeRangeStartMillis / 1000,
-			title: chapter.chapterRenderer.title.simpleText,
-			description: ''
-		})) ?? [];
+		const foundInitialCollection = {
+			_id: collectionId,
+			videoId: await this.getEntityID(),
+			type: this.name,
+			author: { _id: 'WEBSITE', username: 'YouTube Video Author' },
+			title: this.getYTPlayerElement()!.getPlayer().getVideoData().title,
+			description: '',
+			markers: this.getYTPlayerElement()!.get('watchNextData').playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap?.[0].value.chapters.map((chapter: any) => ({
+				_id: ObjectId(),
+				collectionId,
+				when: chapter.chapterRenderer.timeRangeStartMillis / 1000,
+				title: chapter.chapterRenderer.title.simpleText,
+				description: ''
+			})) ?? [],
+			createdAt: now,
+			updatedAt: now,
+		} as Collection;
 
-		return {
+		if (foundInitialCollection.markers.length) {
+			this.initialCollection = foundInitialCollection;
+		}
+
+		return foundMarkers.length ? {
 			_id: collectionId,
 			videoId: await this.getEntityID(),
 			type: this.name,
 			author: currentUser,
 			title: this.getYTPlayerElement()!.getPlayer().getVideoData().title,
 			description: '',
-			markers,
+			markers: foundMarkers,
 			createdAt: now,
 			updatedAt: now,
-		} as Collection;
+		} as Collection : foundInitialCollection;
 	}
 	dialog(
 		type: 'alert' | 'prompt' | 'choose',
@@ -84,7 +101,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 	): AsyncGenerator<() => void, any, unknown> {
 		yield () => {
 			const watchNextData = JSON.parse(JSON.stringify(this.getYTPlayerElement()!.get('watchNextData')));
-			let markersMap = watchNextData.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap[0].value;
+			let markersMap = watchNextData.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap?.[0].value;
 			if (!markersMap) {
 				const dpbr = {
 					decoratedPlayerBarRenderer: {
@@ -183,5 +200,12 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 		const eid = this.getYTPlayerElement()!.getPlayer().getVideoData().video_id;
 		this.cache.set('entityID', eid);
 		return eid;
+	}
+
+	async getCollections(): Promise<MarkerlessCollection[]> {
+		return [
+			...(this.initialCollection ? [this.initialCollection] : []),
+			...await getCollections(this.name, await this.getEntityID())
+		];
 	}
 }

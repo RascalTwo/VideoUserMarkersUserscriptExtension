@@ -27,7 +27,6 @@ import type { Marker } from './types';
 import {
 	generateToken,
 	getCollection,
-	getCollections,
 	getCurrentUser,
 	upsertCollection,
 } from './backend';
@@ -80,7 +79,7 @@ log('Script Started');
 
 	// Get last segment of URL, which is the video ID
 	let user = await getCurrentUser();
-	let otherCollections = await getCollections(platform.name, await platform.getEntityID());
+	let otherCollections = await platform.getCollections();
 	let { collection: _collection, updatedAt } = await (async () => {
 		const {
 			formatter,
@@ -93,8 +92,8 @@ log('Script Started');
 			return { collection: null, updatedAt: '' };
 		}
 		const foundMarkers = FORMATTERS[formatter].deserializeAll(rawMarkers || '[]') as Marker[];
-		const collection =
-			foundCollection ?? (await platform.createInitialCollection(foundMarkers, user));
+		const initialCollection = await platform.createInitialCollection(foundMarkers, user)
+		const collection = foundCollection ?? initialCollection;
 		if (foundMarkers.length) collection.markers = foundMarkers;
 		if (!collection.markers?.length) collection.markers = foundMarkers
 		return { collection, updatedAt };
@@ -218,8 +217,8 @@ log('Script Started');
 			collection!.markers!.length,
 			...(formatter.deserializeAll(response) as Marker[]).map((newMarker, i) => ({
 				...newMarker,
-				_id: collection!.markers![i]._id || ObjectId(),
-				collectionId: collection!.markers![i].collectionId,
+				_id: collection!.markers![i]?._id || ObjectId(),
+				collectionId: collection!.markers![i]?.collectionId || collection!._id,
 			}))
 		);
 		return handleMarkerUpdate(true);
@@ -366,17 +365,19 @@ log('Script Started');
 	const importMenu = async () => {
 		const collectionId = await platform.dialog('choose', 'Import from...', () =>
 			otherCollections.reduce((acc, collection) => {
-				acc[`[${collection.author.username}] ${collection.title}`] = collection._id;
+				acc[`${collection.author ? `[${collection.author.username}] ` : ''}${collection.title}`] = collection._id;
 				return acc;
 			}, {} as Record<string, string>)
 		);
 		if (!collectionId) return;
-		Object.assign(collection, (await getCollection(collectionId))!);
+		const otherCollection = otherCollections.find(c => c._id === collectionId)!;
+		Object.assign(collection, otherCollection.author._id === 'WEBSITE' ? otherCollection : (await getCollection(collectionId))!);
 		handleMarkerUpdate(true);
 	};
 
 	const importExportMenu = async () => {
-		otherCollections = await getCollections(platform.name, await platform.getEntityID());
+		otherCollections = await platform.getCollections();
+
 		if (!otherCollections.length) return exportMenu();
 
 		const choice = await platform.dialog('choose', 'Import/Export', () => ({

@@ -28,6 +28,8 @@ export interface Collection {
 	markers: Marker[];
 }
 
+export type MarkerlessCollection = Omit<Collection, 'markers'>;
+
 export interface IPlatform {
 	name: 'Twitch' | 'YouTube';
 	isReady(): Promise<boolean>;
@@ -51,6 +53,7 @@ export interface IPlatform {
 	isLive(): boolean;
 	dialog(...args: ParametersExceptFirst<typeof dialog>): ReturnType<typeof dialog>;
 	createInitialCollection(foundMarkers: Marker[], currentUser: User | null): Promise<Collection>;
+	getCollections(): Promise<MarkerlessCollection[]>;
 }
 
 export type ParametersExceptFirst<F> = F extends (arg0: any, ...rest: infer R) => any ? R : never;

@@ -1,5 +1,5 @@
 import { BACKEND_API } from "./constants";
-import { Collection, User } from "./types";
+import { Collection, MarkerlessCollection, User } from "./types";
 
 function getUserToken() {
 	return localStorage.getItem('r2_twitch_user_markers_v2_token');
@@ -36,8 +36,6 @@ export async function generateToken(username: string, password: string) {
 		return token!;
 	});
 }
-
-type MarkerlessCollection = Omit<Collection, 'markers'>;
 
 export async function getCollections(type: 'YouTube' | 'Twitch', videoId: string) {
 	return makeBackendRequest<MarkerlessCollection[]>('/collections/' + type + '/' + videoId).catch(() => [] as MarkerlessCollection[]);
