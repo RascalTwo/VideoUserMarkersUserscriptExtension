@@ -253,7 +253,7 @@ log('Script Started');
 		platform,
 		platform.getCurrentTimeLive.bind(platform),
 		handleMarkerUpdate,
-		platform!.seekTo,
+		platform!.seekTo.bind(platform!),
 		startEditingMarker,
 		seekToMarker
 	);
