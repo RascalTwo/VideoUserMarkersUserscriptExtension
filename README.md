@@ -47,6 +47,8 @@ Editing is done by right-clicking either the name or timestamp.
 
 The timestamp also supports scrolling to edit; scrolling up decreases the time by one second, and down increased it by one second.
 
+You can both resize the chapter list - resize control is in the bottom-right - and click-and-drag anywhere to drag the list to your preferred position.
+
 ### VOD
 
 When adjusting the timestamp of a marker, the player automatically seeks to the newly-set timestamp, so you can see in realtime if it's where you desire it to be.

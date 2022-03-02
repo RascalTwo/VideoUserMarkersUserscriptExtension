@@ -161,7 +161,7 @@ export const generateMarkerList = (
 	}
 
 	let rendering = false;
-	let last = { x: window.innerWidth / 10, y: window.innerHeight / 10 };
+	let last = { x: 0, y: 0, top: window.innerHeight / 10, left: window.innerWidth / 10 };
 	const closeFuncs: (() => void)[] = [];
 	const uninstallFuncs: (() => void)[] = [];
 
@@ -191,6 +191,7 @@ export const generateMarkerList = (
 		.r2_marker_list::-webkit-resizer {
 			border: 3px solid white;
 			background: transparent;
+			cursor: nwse-resize;
 		}
 	`)
 		);
@@ -264,8 +265,8 @@ export const generateMarkerList = (
 			list.style.overflowX = 'auto';
 			list.style.resize = 'both';
 
-			list.style.top = last.y + 'px';
-			list.style.left = last.x + 'px';
+			list.style.top = last.top + 'px';
+			list.style.left = last.left + 'px';
 
 			const header = document.createElement('h4');
 			header.textContent = 'Marker List';
@@ -275,9 +276,16 @@ export const generateMarkerList = (
 			header.style.margin = '0';
 
 			let dragging = false;
-			header.addEventListener('mousedown', e => {
+			list.addEventListener('mousedown', e => {
+				if (
+					Math.abs(list.offsetLeft - e.clientX) >= (list.offsetWidth / 10) * 9 &&
+					Math.abs(list.offsetTop - e.clientY) >= (list.offsetHeight / 10) * 9
+				)
+					return;
+
 				dragging = true;
-				last = { x: e.clientX, y: e.clientY };
+				last.x = e.clientX;
+				last.y = e.clientY;
 			});
 			const handleMouseUp = () => {
 				dragging = false;
@@ -289,7 +297,10 @@ export const generateMarkerList = (
 
 				list.style.top = list.offsetTop - (last.y - e.clientY) + 'px';
 				list.style.left = list.offsetLeft - (last.x - e.clientX) + 'px';
-				last = { x: e.clientX, y: e.clientY };
+				last.x = e.clientX;
+				last.y = e.clientY;
+				last.top = parseInt(list.style.top);
+				last.left = parseInt(list.style.left);
 			};
 			document.body.addEventListener('mousemove', handleMouseMove);
 			list.appendChild(header);
