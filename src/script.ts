@@ -272,11 +272,18 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			const markerTitleInterval = setInterval(async () => {
 				if (markerName.dataset.controlled) return;
 
-				const now = await getCurrentTimeLive();
-				const marker = markers.filter(m => Math.floor(m.seconds) <= now).slice(-1)[0] ?? {
-					name: '',
-					seconds: -1,
-				};
+				let marker;
+				if (isVOD()) {
+					const now = await getCurrentTimeLive();
+					marker = markers.filter(m => Math.floor(m.seconds) <= now).slice(-1)[0];
+				} else {
+					marker = markers[markers.length - 1];
+				}
+				if (!marker)
+					marker = {
+						name: '',
+						seconds: -1,
+					};
 
 				markerName.textContent = marker.name;
 				markerName.dataset.seconds = marker.seconds.toString();
@@ -310,8 +317,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 					// @ts-ignore
 					const seconds = xToSeconds(e.layerX);
 
-					const marker =
-						markers.filter(m => Math.floor(m.seconds) <= seconds).slice(-1)[0] ?? null;
+					const marker = markers.filter(m => Math.floor(m.seconds) <= seconds).slice(-1)[0] ?? null;
 
 					if (!marker || markerName.dataset.seconds === marker.seconds.toString()) return;
 					markerName.textContent = marker.name;
@@ -383,12 +389,16 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			);
 		addUninstallationStep(removeDOMMarkers);
 	} else if (isLive()) {
+		let cachedDelay = [0, 0];
+
 		/**
 		 * Return the number of seconds of delay as reported by Twitch
 		 *
 		 * @returns {number}
 		 */
 		async function getLiveDelay(): Promise<number> {
+			const now = Date.now();
+			if (now - cachedDelay[0] < 60000) return Promise.resolve(cachedDelay[1]);
 			const latency = document.querySelector('[aria-label="Latency To Broadcaster"]');
 			const bufferSize = document.querySelector('[aria-label="Buffer Size"]');
 			if (!latency || !bufferSize) {
@@ -406,9 +416,12 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 				'[data-a-target="player-settings-submenu-advanced-video-stats"] input',
 				'[data-a-target="player-settings-button"]'
 			);
-			return [latency, bufferSize]
+			const delay = [latency, bufferSize]
 				.map(e => Number(e.textContent!.split(' ')[0]))
 				.reduce((sum, s) => sum + s);
+
+			cachedDelay = [now, delay];
+			return delay;
 		}
 
 		getCurrentTimeLive = async () => {
