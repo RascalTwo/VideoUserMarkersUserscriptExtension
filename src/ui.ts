@@ -146,12 +146,7 @@ export const generateMarkerList = (
 	getCurrentTimeLive: () => Promise<number>,
 	handleMarkerUpdate: () => Promise<void>,
 	setTime: (seconds: number) => Promise<void>,
-	startEditingMarker: (
-		marker: Marker,
-		seconds: boolean,
-		name: boolean,
-		e: Event
-	) => Promise<void>,
+	startEditingMarker: (marker: Marker, seconds: boolean, name: boolean, e: Event) => Promise<void>,
 	seekToMarker: (marker: Marker, e: Event) => Promise<void>
 ) => {
 	function deleteMarker(marker: Marker) {
@@ -170,6 +165,39 @@ export const generateMarkerList = (
 	const closeFuncs: (() => void)[] = [];
 	const uninstallFuncs: (() => void)[] = [];
 
+	function appendMarkerListCSS() {
+		if (document.querySelector('.r2_marker_list_style')) return () => undefined;
+
+		const style = document.createElement('style');
+		style.className = 'r2_marker_list_style';
+		style.appendChild(
+			document.createTextNode(`
+		/* Scrollbar Styles */
+		.r2_marker_list::-webkit-scrollbar {
+			width: 7.5px;
+		}
+
+		.r2_marker_list::-webkit-scrollbar-track {
+			background: transparent;
+		}
+
+		.r2_marker_list::-webkit-scrollbar-thumb {
+			background-color: rgb(24, 24, 27);
+			border-radius: 7px;
+			border: 1px solid rgb(239, 239, 241);
+		}
+
+		/* Resizing Styles */
+		.r2_marker_list::-webkit-resizer {
+			border: 3px solid white;
+			background: transparent;
+		}
+	`)
+		);
+		document.querySelector('head')!.appendChild(style);
+		return () => style.remove();
+	}
+
 	const getCurrentMarkerLI = (list: HTMLUListElement) =>
 		getCurrentTimeLive().then(
 			now =>
@@ -183,6 +211,7 @@ export const generateMarkerList = (
 
 	function renderMarkerList() {
 		if (!rendering) return removeMarkerList();
+		uninstallFuncs.push(appendMarkerListCSS());
 
 		const existingList = document.querySelector<HTMLUListElement>('.r2_marker_list');
 		const list = existingList || (document.createElement('ul') as HTMLUListElement);
@@ -227,10 +256,12 @@ export const generateMarkerList = (
 			list.style.borderRadius = '1em';
 			list.style.color = 'white';
 			list.style.display = 'flex';
+			list.style.gap = '0.5em';
 			list.style.flexDirection = 'column';
 			list.style.maxHeight = '75vh';
 			list.style.maxWidth = '50vw';
 			list.style.overflow = 'scroll';
+			list.style.overflowX = 'auto';
 			list.style.resize = 'both';
 
 			list.style.top = last.y + 'px';
@@ -311,6 +342,7 @@ export const generateMarkerList = (
 			li.dataset.seconds = marker.seconds.toString();
 			if (!existingLi) {
 				li.style.display = 'flex';
+				li.style.gap = '1em';
 				li.style.alignItems = 'center';
 			}
 

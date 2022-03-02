@@ -1,6 +1,6 @@
 {
   "name": "r2_twitch_user_markers",
-  "version": "1.2.3",
+  "version": "1.2.4",
   "description": "",
   "scripts": {
     "build": "tsc && node build.js"
