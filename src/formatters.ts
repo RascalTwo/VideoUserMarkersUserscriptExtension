@@ -1,18 +1,18 @@
 import { secondsToDHMS, DHMStoSeconds } from './helpers';
-import type { Chapter } from './types';
+import type { Marker } from './types';
 
-class ChapterFormatter {
+class MarkerFormatter {
 	public static multiline = false;
 	static delim: string = '\n';
 
-	static *serialize(_: Chapter[]): Generator<string> {
+	static *serialize(_: Marker[]): Generator<string> {
 		return [];
 	}
-	static *deserialize(_: string): Generator<Chapter> {
+	static *deserialize(_: string): Generator<Marker> {
 		return [];
 	}
-	static serializeAll(chapters: Chapter[]) {
-		return Array.from(this.serialize(chapters)).join(this.delim);
+	static serializeAll(markers: Marker[]) {
+		return Array.from(this.serialize(markers)).join(this.delim);
 	}
 	static deserializeAll(content: string) {
 		return Array.from(this.deserialize(content));
@@ -32,21 +32,21 @@ class ChapterFormatter {
 }
 
 export const FORMATTERS = {
-	json: class JSONFormatter extends ChapterFormatter {
-		static serializeAll(chapters: Chapter[]) {
-			return JSON.stringify(chapters);
+	json: class JSONFormatter extends MarkerFormatter {
+		static serializeAll(markers: Marker[]) {
+			return JSON.stringify(markers);
 		}
 		static deserializeAll(content: string) {
 			return JSON.parse(content);
 		}
 	},
-	minimal: class MinimalFormatter extends ChapterFormatter {
+	minimal: class MinimalFormatter extends MarkerFormatter {
 		static delim = '\n';
-		static *serialize(chapters: Chapter[]) {
-			const places = secondsToDHMS(chapters[chapters.length - 1]?.seconds ?? 0).split(':').length;
-			for (const chapter of chapters) {
-				const dhms = secondsToDHMS(chapter.seconds, places);
-				yield [dhms, chapter.name].join('\t');
+		static *serialize(markers: Marker[]) {
+			const places = secondsToDHMS(markers[markers.length - 1]?.seconds ?? 0).split(':').length;
+			for (const marker of markers) {
+				const dhms = secondsToDHMS(marker.seconds, places);
+				yield [dhms, marker.name].join('\t');
 			}
 		}
 		static *deserialize(content: string) {
@@ -75,7 +75,7 @@ export const FORMATTERS = {
 
 export function getUIFormatter() {
 	return FORMATTERS[
-		(localStorage.getItem('r2_twitch_chapters_ui_formatter') as keyof typeof FORMATTERS) ??
+		(localStorage.getItem('r2_twitch_user_markers_ui_formatter') as keyof typeof FORMATTERS) ??
 			'minimal'
 	];
 }

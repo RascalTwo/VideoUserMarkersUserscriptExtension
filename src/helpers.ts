@@ -1,9 +1,9 @@
 import { FORMATTERS } from './formatters';
 import { getVideoID } from './twitch';
-import { Chapter } from './types';
+import { Marker } from './types';
 
 export function log(...args: any) {
-	console.log('[R2 Twitch Chapters]', ...args);
+	console.log('[R2 Twitch User-Markers]', ...args);
 }
 
 /**
@@ -124,17 +124,17 @@ export async function loadFromLocalStorage(): Promise<{
 	content: string;
 }> {
 	return JSON.parse(
-		localStorage.getItem('r2_twitch_chapters_' + (await getVideoID(false))) ??
+		localStorage.getItem('r2_twitch_user_markers_' + (await getVideoID(false))) ??
 			'{"formatter": "json", "content": "[]"}'
 	);
 }
 
-export async function saveToLocalStorage(formatter: keyof typeof FORMATTERS, chapters: Chapter[]) {
+export async function saveToLocalStorage(formatter: keyof typeof FORMATTERS, markers: Marker[]) {
 	localStorage.setItem(
-		'r2_twitch_chapters_' + (await getVideoID(false)),
+		'r2_twitch_user_markers_' + (await getVideoID(false)),
 		JSON.stringify({
 			formatter,
-			content: FORMATTERS[formatter].serializeAll(chapters),
+			content: FORMATTERS[formatter].serializeAll(markers),
 		})
 	);
 }
@@ -158,7 +158,7 @@ export function createUninstaller(reinstall: () => void, shouldReinstall?: () =>
 		for (const func of uninstallFuncs) await func();
 		log('Uninstalled');
 	}
-	window.r2_twitch_chapters = { uninstall };
+	window.r2_twitch_user_markers = { uninstall };
 
 	function addUninstallationStep(step: () => Promise<void> | void) {
 		uninstallFuncs.push(step);

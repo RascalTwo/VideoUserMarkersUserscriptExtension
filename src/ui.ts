@@ -1,6 +1,6 @@
 import { NOOP, chToPx, attachEscapeHandler, delay, secondsToDHMS } from './helpers';
 import { generateTwitchTimestamp, getButtonClass, getVideoID, isVOD } from './twitch';
-import { Chapter } from './types';
+import { Marker } from './types';
 
 let openDialogs = 0;
 
@@ -141,28 +141,28 @@ export async function dialog(
 	});
 }
 
-export const generateChapterList = (
-	chapters: Chapter[],
+export const generateMarkerList = (
+	markers: Marker[],
 	getCurrentTimeLive: () => Promise<number>,
-	handleChapterUpdate: () => Promise<void>,
+	handleMarkerUpdate: () => Promise<void>,
 	setTime: (seconds: number) => Promise<void>,
-	startEditingChapter: (
-		chapter: Chapter,
+	startEditingMarker: (
+		marker: Marker,
 		seconds: boolean,
 		name: boolean,
 		e: Event
 	) => Promise<void>,
-	seekToChapter: (chapter: Chapter, e: Event) => Promise<void>
+	seekToMarker: (marker: Marker, e: Event) => Promise<void>
 ) => {
-	function deleteChapter(chapter: Chapter) {
-		const index = chapters!.findIndex(c => c.seconds === chapter.seconds);
-		chapters!.splice(index, 1);
-		return handleChapterUpdate();
+	function deleteMarker(marker: Marker) {
+		const index = markers!.findIndex(m => m.seconds === marker.seconds);
+		markers!.splice(index, 1);
+		return handleMarkerUpdate();
 	}
 
-	function adjustChapterSeconds(chapter: Chapter, change: number) {
-		chapter.seconds += change;
-		return handleChapterUpdate().then(() => chapter);
+	function adjustMarkerSeconds(marker: Marker, change: number) {
+		marker.seconds += change;
+		return handleMarkerUpdate().then(() => marker);
 	}
 
 	let rendering = false;
@@ -170,28 +170,28 @@ export const generateChapterList = (
 	const closeFuncs: (() => void)[] = [];
 	const uninstallFuncs: (() => void)[] = [];
 
-	const getCurrentChapterLI = (list: HTMLUListElement) =>
+	const getCurrentMarkerLI = (list: HTMLUListElement) =>
 		getCurrentTimeLive().then(
 			now =>
 				list.querySelectorAll('li')[
-					(chapters!
-						.map((c, i) => [c, i] as [Chapter, number])
+					(markers!
+						.map((c, i) => [c, i] as [Marker, number])
 						.filter(([c]) => Math.floor(c.seconds) <= now)
 						.slice(-1)[0] ?? [null, -1])[1]
 				]
 		);
 
-	function renderChapterList() {
-		if (!rendering) return removeChapterList();
+	function renderMarkerList() {
+		if (!rendering) return removeMarkerList();
 
-		const existingList = document.querySelector<HTMLUListElement>('.r2_chapter_list');
+		const existingList = document.querySelector<HTMLUListElement>('.r2_marker_list');
 		const list = existingList || (document.createElement('ul') as HTMLUListElement);
 		if (!existingList) {
 			const keydownHandler = (e: KeyboardEvent) => {
 				if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
 
 				const { key } = e;
-				const active = list.querySelector('li[data-r2_active_chapter="true"]');
+				const active = list.querySelector('li[data-r2_active_marker="true"]');
 				if (key === 'w' || key === 's') {
 					if (!active) makeActive(list.querySelector('li')!);
 					else if (key === 'w' && active.previousElementSibling?.tagName === 'LI')
@@ -207,19 +207,19 @@ export const generateChapterList = (
 					if (!active) return;
 					e.preventDefault();
 					e.stopPropagation();
-					return adjustChapterSeconds(
-						getElementChapter({ target: active })!,
+					return adjustMarkerSeconds(
+						getElementMarker({ target: active })!,
 						key === 'a' ? -1 : 1
-					).then(chapter => (isVOD() ? setTime(chapter.seconds) : undefined));
+					).then(marker => (isVOD() ? setTime(marker.seconds) : undefined));
 				} else if (key === 'n' && active) {
-					return startEditingChapter(getElementChapter({ target: active })!, false, true, e);
+					return startEditingMarker(getElementMarker({ target: active })!, false, true, e);
 				} else if (isVOD() && (key === 'q' || key === 'e'))
 					getCurrentTimeLive().then(seconds => setTime(seconds + (key === 'q' ? -1 : 1)));
 			};
 			window.addEventListener('keydown', keydownHandler);
 			closeFuncs.push(() => window.removeEventListener('keydown', keydownHandler));
 
-			list.className = 'r2_chapter_list';
+			list.className = 'r2_marker_list';
 			list.style.position = 'absolute';
 			list.style.zIndex = (9000 + getDialogCount()).toString();
 			list.style.backgroundColor = '#18181b';
@@ -237,7 +237,7 @@ export const generateChapterList = (
 			list.style.left = last.x + 'px';
 
 			const header = document.createElement('h4');
-			header.textContent = 'Chapter List';
+			header.textContent = 'Marker List';
 			header.style.backgroundColor = '#08080b';
 			header.style.userSelect = 'none';
 			header.style.padding = '0';
@@ -272,49 +272,49 @@ export const generateChapterList = (
 			closeButton.className = getButtonClass();
 			closeButton.style.float = 'right';
 			closeButton.textContent = 'Close';
-			closeButton.addEventListener('click', () => setChapterList(false));
+			closeButton.addEventListener('click', () => setMarkerList(false));
 
 			header.appendChild(closeButton);
 
 			uninstallFuncs.push(
 				attachEscapeHandler(
-					() => setChapterList(false),
+					() => setMarkerList(false),
 					() => list.style.zIndex === (9000 + getDialogCount()).toString()
 				)
 			);
 		}
 
-		chapters!.sort((a, b) => a.seconds - b.seconds);
-		const places = secondsToDHMS(chapters![chapters!.length - 1]?.seconds ?? 0).split(':').length;
+		markers!.sort((a, b) => a.seconds - b.seconds);
+		const places = secondsToDHMS(markers![markers!.length - 1]?.seconds ?? 0).split(':').length;
 
-		function getElementChapter(e: { target: EventTarget | null }) {
+		function getElementMarker(e: { target: EventTarget | null }) {
 			const seconds = Number(
 				(e.target! as HTMLElement).closest<HTMLElement>('[data-seconds]')!.dataset.seconds
 			);
-			return chapters!.find(chapter => chapter.seconds === seconds);
+			return markers!.find(marker => marker.seconds === seconds);
 		}
 
 		const makeActive = (li: HTMLLIElement, seekTo: boolean = true) => {
-			list.querySelectorAll<HTMLLIElement>('li[data-r2_active_chapter="true"]').forEach(otherLi => {
-				delete otherLi.dataset.r2_active_chapter;
+			list.querySelectorAll<HTMLLIElement>('li[data-r2_active_marker="true"]').forEach(otherLi => {
+				delete otherLi.dataset.r2_active_marker;
 				otherLi.style.backgroundColor = '';
 			});
-			li.dataset.r2_active_chapter = 'true';
+			li.dataset.r2_active_marker = 'true';
 			li.style.backgroundColor = 'black';
 			li.scrollIntoView();
-			if (seekTo && isVOD()) return setTime(getElementChapter({ target: li })!.seconds);
+			if (seekTo && isVOD()) return setTime(getElementMarker({ target: li })!.seconds);
 		};
 
-		for (const [i, chapter] of chapters!.entries()) {
+		for (const [i, marker] of markers!.entries()) {
 			const existingLi = list.querySelectorAll('li')[i];
 			const li = existingLi || document.createElement('li');
-			li.dataset.seconds = chapter.seconds.toString();
+			li.dataset.seconds = marker.seconds.toString();
 			if (!existingLi) {
 				li.style.display = 'flex';
 				li.style.alignItems = 'center';
 			}
 
-			const timeContent = secondsToDHMS(chapter.seconds, places);
+			const timeContent = secondsToDHMS(marker.seconds, places);
 
 			const time = li.querySelector('span') || document.createElement('span');
 			if (!existingLi) {
@@ -324,10 +324,10 @@ export const generateChapterList = (
 					// Stop native scrolling
 					e.preventDefault();
 
-					return adjustChapterSeconds(
-						getElementChapter(e)!,
+					return adjustMarkerSeconds(
+						getElementMarker(e)!,
 						Math.min(Math.max(e.deltaY, -1), 1)
-					).then(chapter => (isVOD() ? setTime(chapter.seconds) : undefined));
+					).then(marker => (isVOD() ? setTime(marker.seconds) : undefined));
 				});
 
 				const decrease = document.createElement('button');
@@ -336,8 +336,8 @@ export const generateChapterList = (
 				decrease.title = 'Subtract 1 second';
 				decrease.addEventListener('click', e => {
 					makeActive(li);
-					adjustChapterSeconds(getElementChapter(e)!, -1).then(chapter =>
-						isVOD() ? setTime(chapter.seconds) : undefined
+					adjustMarkerSeconds(getElementMarker(e)!, -1).then(marker =>
+						isVOD() ? setTime(marker.seconds) : undefined
 					);
 				});
 				time.appendChild(decrease);
@@ -348,13 +348,13 @@ export const generateChapterList = (
 					timeText.style.cursor = 'pointer';
 					timeText.addEventListener('click', e => {
 						makeActive(li);
-						seekToChapter(getElementChapter(e)!, e);
+						seekToMarker(getElementMarker(e)!, e);
 					});
 				}
 				timeText.addEventListener('contextmenu', e => {
 					makeActive(li);
 
-					startEditingChapter(getElementChapter(e)!, true, false, e);
+					startEditingMarker(getElementMarker(e)!, true, false, e);
 				});
 				time.appendChild(timeText);
 
@@ -364,8 +364,8 @@ export const generateChapterList = (
 				increase.title = 'Add 1 second';
 				increase.addEventListener('click', e => {
 					makeActive(li);
-					adjustChapterSeconds(getElementChapter(e)!, 1).then(chapter =>
-						isVOD() ? setTime(chapter.seconds) : undefined
+					adjustMarkerSeconds(getElementMarker(e)!, 1).then(marker =>
+						isVOD() ? setTime(marker.seconds) : undefined
 					);
 				});
 				time.appendChild(increase);
@@ -375,37 +375,37 @@ export const generateChapterList = (
 			}
 
 			const title =
-				li.querySelector<HTMLElement>('span.r2_chapter_title') || document.createElement('span');
+				li.querySelector<HTMLElement>('span.r2_marker_title') || document.createElement('span');
 			if (!existingLi) {
-				title.className = 'r2_chapter_title';
+				title.className = 'r2_marker_title';
 				title.style.flex = '1';
 				title.style.textAlign = 'center';
 				if (isVOD()) {
 					title.style.cursor = 'pointer';
 					title.addEventListener('click', e => {
 						makeActive(li);
-						seekToChapter(getElementChapter(e)!, e);
+						seekToMarker(getElementMarker(e)!, e);
 					});
 				}
 				title.addEventListener('contextmenu', e =>
-					startEditingChapter(getElementChapter(e)!, false, true, e)
+					startEditingMarker(getElementMarker(e)!, false, true, e)
 				);
 				li.appendChild(title);
 			}
-			title.textContent = chapter.name;
+			title.textContent = marker.name;
 
 			const share =
-				li.querySelector<HTMLButtonElement>('button.r2_chapter_share') ||
+				li.querySelector<HTMLButtonElement>('button.r2_marker_share') ||
 				document.createElement('button');
 			if (!existingLi) {
 				share.className = getButtonClass();
-				share.classList.add('r2_chapter_share');
+				share.classList.add('r2_marker_share');
 				share.style.float = 'right';
 				share.textContent = 'Share';
 				share.addEventListener('click', async e =>
 					navigator.clipboard.writeText(
 						`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(
-							getElementChapter(e)!.seconds
+							getElementMarker(e)!.seconds
 						)}`
 					)
 				);
@@ -413,15 +413,15 @@ export const generateChapterList = (
 			}
 
 			const deleteBtn =
-				li.querySelector<HTMLButtonElement>('button.r2_chapter_delete') ||
+				li.querySelector<HTMLButtonElement>('button.r2_marker_delete') ||
 				document.createElement('button');
 			if (!existingLi) {
 				deleteBtn.className = getButtonClass();
-				deleteBtn.classList.add('r2_chapter_delete');
+				deleteBtn.classList.add('r2_marker_delete');
 				deleteBtn.style.float = 'right';
 				deleteBtn.textContent = 'Delete';
 				deleteBtn.addEventListener('click', e => {
-					deleteChapter(getElementChapter(e)!);
+					deleteMarker(getElementMarker(e)!);
 					li.remove();
 				});
 				li.appendChild(deleteBtn);
@@ -435,13 +435,13 @@ export const generateChapterList = (
 			closeButton.className = getButtonClass();
 			closeButton.style.float = 'right';
 			closeButton.textContent = 'Close';
-			closeButton.addEventListener('click', () => setChapterList(false));
+			closeButton.addEventListener('click', () => setMarkerList(false));
 			list.appendChild(closeButton);
 
 			document.body.appendChild(list);
 
 			delay(0)
-				.then(() => getCurrentChapterLI(list))
+				.then(() => getCurrentMarkerLI(list))
 				.then(li => {
 					if (!li) return;
 					li.scrollIntoView();
@@ -450,29 +450,29 @@ export const generateChapterList = (
 		}
 	}
 
-	function removeChapterList() {
-		document.querySelector('.r2_chapter_list')?.remove();
+	function removeMarkerList() {
+		document.querySelector('.r2_marker_list')?.remove();
 		closeFuncs.forEach(close => close());
 		closeFuncs.splice(0, closeFuncs.length);
 	}
 
-	uninstallFuncs.push(removeChapterList);
+	uninstallFuncs.push(removeMarkerList);
 
-	const setChapterList = (render: boolean) => {
+	const setMarkerList = (render: boolean) => {
 		rendering = render;
 
 		changeDialogCount(Number(render));
 
-		renderChapterList();
+		renderMarkerList();
 	};
 
-	const uninstallChapterList = (() => {
+	const uninstallMarkerList = (() => {
 		let lastLi: HTMLLIElement | null = null;
 		const interval = setInterval(() => {
-			const list = document.querySelector<HTMLUListElement>('.r2_chapter_list')!;
+			const list = document.querySelector<HTMLUListElement>('.r2_marker_list')!;
 			return !list
 				? null
-				: getCurrentChapterLI(list).then(li => {
+				: getCurrentMarkerLI(list).then(li => {
 						if (!li) return;
 
 						li.style.backgroundColor = 'black';
@@ -487,9 +487,9 @@ export const generateChapterList = (
 	})();
 
 	return {
-		removeChapterList,
-		renderChapterList,
-		setChapterList,
-		uninstallChapterList,
+		removeMarkerList,
+		renderMarkerList,
+		setMarkerList,
+		uninstallMarkerList,
 	};
 };

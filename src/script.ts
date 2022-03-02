@@ -1,5 +1,5 @@
 // ==UserScript==
-// @name     Twitch Chapters
+// @name     R2 Twitch User-Markers
 // @version  1
 // @grant    none
 // @match    https://www.twitch.tv/*
@@ -25,12 +25,12 @@ import {
 	isLive,
 	isVOD,
 } from './twitch';
-import { dialog, generateChapterList } from './ui';
-import type { Chapter } from './types';
+import { dialog, generateMarkerList as generateMarkerList } from './ui';
+import type { Marker } from './types';
 
 declare global {
 	interface Window {
-		r2_twitch_chapters?: {
+		r2_twitch_user_markers?: {
 			uninstall: () => Promise<void>;
 		};
 	}
@@ -42,7 +42,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 (async function main() {
 	// Run uninstall if previously loaded, development only
-	await window.r2_twitch_chapters?.uninstall();
+	await window.r2_twitch_user_markers?.uninstall();
 
 	log('Setup Started');
 
@@ -63,17 +63,17 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	}
 
 	// Get last segment of URL, which is the video ID
-	const chapters = await (async () => {
+	const markers = await (async () => {
 		const { formatter, content } = await loadFromLocalStorage();
 		if (!(formatter in FORMATTERS)) {
 			dialog('alert', `Formatter for saved content does not exist: ${formatter}`);
 			return null;
 		}
-		return FORMATTERS[formatter].deserializeAll(content) as Chapter[];
+		return FORMATTERS[formatter].deserializeAll(content) as Marker[];
 	})();
 
-	if (chapters === null) {
-		log('Error loading chapters, abandoning');
+	if (markers === null) {
+		log('Error loading markers, abandoning');
 		return;
 	}
 
@@ -95,7 +95,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			ui.style.border = '1px solid white';
 
 			const summary = document.createElement('summary');
-			summary.textContent = 'R2 Twitch Chapters';
+			summary.textContent = 'R2 Markers';
 			ui.appendChild(summary);
 
 			const wrapper = document.createElement('div');
@@ -103,19 +103,19 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			wrapper.style.gap = '0.5em';
 			ui.appendChild(wrapper);
 
-			const chaptersButton = document.createElement('button');
-			chaptersButton.textContent = 'Menu';
-			chaptersButton.className = getButtonClass();
-			chaptersButton.style.flex = '1';
-			chaptersButton.addEventListener('click', () => menu());
-			wrapper.appendChild(chaptersButton);
+			const markersButton = document.createElement('button');
+			markersButton.textContent = 'Menu';
+			markersButton.className = getButtonClass();
+			markersButton.style.flex = '1';
+			markersButton.addEventListener('click', () => menu());
+			wrapper.appendChild(markersButton);
 
-			const addChapter = document.createElement('button');
-			addChapter.textContent = 'Add';
-			addChapter.className = getButtonClass();
-			addChapter.style.flex = '1';
-			addChapter.addEventListener('click', () => addChapterHere());
-			wrapper.appendChild(addChapter);
+			const addMarker = document.createElement('button');
+			addMarker.textContent = 'Add';
+			addMarker.className = getButtonClass();
+			addMarker.style.flex = '1';
+			addMarker.addEventListener('click', () => addMarkerHere());
+			wrapper.appendChild(addMarker);
 
 			document.querySelector(TOP_BAR_SELECTOR + ' > div:last-of-type')!.appendChild(ui);
 			return () => ui.remove();
@@ -157,79 +157,79 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			.children[2].props.onThumbLocationChange(seconds);
 	}
 
-	function seekToChapter(chapter: Chapter, e: Event) {
+	function seekToMarker(marker: Marker, e: Event) {
 		// Stop native seekbar behavior
 		e?.stopImmediatePropagation();
 		e?.stopPropagation();
-		return setTime(chapter.seconds);
+		return setTime(marker.seconds);
 	}
 
-	function startEditingChapter(chapter: Chapter, seconds: boolean, name: boolean, e: Event) {
+	function startEditingMarker(marker: Marker, seconds: boolean, name: boolean, e: Event) {
 		// Disable context menu
 		e?.preventDefault();
 		// Stop native seekbar behavior
 		e?.stopImmediatePropagation();
 		e?.stopPropagation();
 
-		if (seconds && name) return editChapter(chapter);
-		else if (seconds) return editChapterSeconds(chapter);
-		return editChapterName(chapter);
+		if (seconds && name) return editMarker(marker);
+		else if (seconds) return editMarkerSeconds(marker);
+		return editMarkerName(marker);
 	}
 
-	async function editChapterSeconds(chapter: Chapter) {
+	async function editMarkerSeconds(marker: Marker) {
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Time:', () => [
 			formatter.multiline ? 'textarea' : 'input',
-			formatter.serializeSeconds(chapter.seconds),
+			formatter.serializeSeconds(marker.seconds),
 		]);
 		if (response === null) return;
 
 		const seconds = formatter.deserializeSeconds(response);
 		if (!seconds) return;
 
-		chapter.seconds = seconds;
-		return handleChapterUpdate();
+		marker.seconds = seconds;
+		return handleMarkerUpdate();
 	}
 
-	async function editChapterName(chapter: Chapter) {
+	async function editMarkerName(marker: Marker) {
 		const formatter = getUIFormatter();
 		const response = await dialog('prompt', 'Edit Name:', () => [
 			formatter.multiline ? 'textarea' : 'input',
-			formatter.serializeName(chapter.name),
+			formatter.serializeName(marker.name),
 		]);
 		if (response === null) return;
 
 		const name = formatter.deserializeName(response);
 		if (!name) return;
 
-		chapter.name = name;
-		return handleChapterUpdate();
+		marker.name = name;
+		return handleMarkerUpdate();
 	}
 
-	async function editChapter(chapter: Chapter) {
+	async function editMarker(marker: Marker) {
 		const formatter = getUIFormatter();
-		const response = await dialog('prompt', 'Edit Chapter:', () => [
+		const response = await dialog('prompt', 'Edit Marker:', () => [
 			formatter.multiline ? 'textarea' : 'input',
-			formatter.serializeAll([chapter])[0],
+			formatter.serializeAll([marker])[0],
 		]);
 		if (response === null) return;
 
 		const edited = formatter.deserializeAll(response)[0];
 		if (!edited) return;
 
-		Object.assign(chapter, edited);
-		return handleChapterUpdate();
+		Object.assign(marker, edited);
+		return handleMarkerUpdate();
 	}
 
-	async function editAllChapters() {
+	async function editAllMarkers() {
 		const formatter = getUIFormatter();
-		const response = await dialog('prompt', 'Edit Serialized Chapters', () => [
+		const response = await dialog('prompt', 'Edit Serialized Markers', () => [
 			'textarea',
-			formatter.serializeAll(chapters!),
+			formatter.serializeAll(markers!),
 		]);
 		if (response === null) return;
-		chapters!.splice(0, chapters!.length, ...formatter.deserializeAll(response));
-		return handleChapterUpdate();
+		markers!.splice(0, markers!.length, ...formatter.deserializeAll(response));
+		return handleMarkerUpdate();
 	}
 
 	/**
@@ -238,53 +238,53 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 * @returns {number}
 	 */
 	let getCurrentTimeLive = async () => 0;
-	let chapterChangeHandlers: (() => any)[] = [
-		() => loadFromLocalStorage().then(({ formatter }) => saveToLocalStorage(formatter, chapters)),
+	let markerChangeHandlers: (() => any)[] = [
+		() => loadFromLocalStorage().then(({ formatter }) => saveToLocalStorage(formatter, markers)),
 	];
 
 	addUninstallationStep(
 		(() => {
-			const chapterName = document.createElement('anchor') as HTMLAnchorElement;
-			chapterName.href = '#';
-			chapterName.style.cursor = 'hover';
-			chapterName.style.paddingLeft = '1em';
-			chapterName.className = 'r2_current_chapter';
-			chapterName.dataset.controlled = '';
+			const markerName = document.createElement('anchor') as HTMLAnchorElement;
+			markerName.href = '#';
+			markerName.style.cursor = 'hover';
+			markerName.style.paddingLeft = '1em';
+			markerName.className = 'r2_current_marker';
+			markerName.dataset.controlled = '';
 			if (isVOD()) {
-				chapterName.style.cursor = 'pointer';
-				chapterName.addEventListener('click', e => {
+				markerName.style.cursor = 'pointer';
+				markerName.addEventListener('click', e => {
 					// Prevent anchor behavior
 					e.preventDefault();
 
-					setTime(Number(chapterName.dataset.seconds));
+					setTime(Number(markerName.dataset.seconds));
 				});
 			}
-			chapterName.addEventListener('contextmenu', e => {
+			markerName.addEventListener('contextmenu', e => {
 				// Stop context menu
 				e.preventDefault();
-				chapterList.setChapterList(true);
+				markerList.setMarkerList(true);
 			});
 
 			document
 				.querySelector<HTMLElement>('[data-a-target="player-volume-slider"]')!
-				.parentNode!.parentNode!.parentNode!.parentNode!.appendChild(chapterName);
+				.parentNode!.parentNode!.parentNode!.parentNode!.appendChild(markerName);
 
-			const chapterTitleInterval = setInterval(async () => {
-				if (chapterName.dataset.controlled) return;
+			const markerTitleInterval = setInterval(async () => {
+				if (markerName.dataset.controlled) return;
 
 				const now = await getCurrentTimeLive();
-				const chapter = chapters.filter(c => Math.floor(c.seconds) <= now).slice(-1)[0] ?? {
+				const marker = markers.filter(m => Math.floor(m.seconds) <= now).slice(-1)[0] ?? {
 					name: '',
 					seconds: -1,
 				};
 
-				chapterName.textContent = chapter.name;
-				chapterName.dataset.seconds = chapter.seconds.toString();
+				markerName.textContent = marker.name;
+				markerName.dataset.seconds = marker.seconds.toString();
 			}, 1000);
 
 			return () => {
-				clearInterval(chapterTitleInterval);
-				chapterName.remove();
+				clearInterval(markerTitleInterval);
+				markerName.remove();
 			};
 		})()
 	);
@@ -304,22 +304,22 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 				};
 				const handleMouseOver = (e: MouseEvent) => {
 					if (e.target === bar) return;
-					const chapterName = document.querySelector<HTMLElement>('.r2_current_chapter')!;
-					chapterName.dataset.controlled = 'true';
+					const markerName = document.querySelector<HTMLElement>('.r2_current_marker')!;
+					markerName.dataset.controlled = 'true';
 
 					// @ts-ignore
 					const seconds = xToSeconds(e.layerX);
 
-					const chapter =
-						chapters.filter(c => Math.floor(c.seconds) <= seconds).slice(-1)[0] ?? null;
+					const marker =
+						markers.filter(m => Math.floor(m.seconds) <= seconds).slice(-1)[0] ?? null;
 
-					if (!chapter || chapterName.dataset.seconds === chapter.seconds.toString()) return;
-					chapterName.textContent = chapter.name;
-					chapterName.dataset.seconds = chapter.seconds.toString();
+					if (!marker || markerName.dataset.seconds === marker.seconds.toString()) return;
+					markerName.textContent = marker.name;
+					markerName.dataset.seconds = marker.seconds.toString();
 				};
 
 				const handleMouseLeave = () => {
-					document.querySelector<HTMLElement>('.r2_current_chapter')!.dataset.controlled = '';
+					document.querySelector<HTMLElement>('.r2_current_marker')!.dataset.controlled = '';
 				};
 
 				const bar = document.querySelector('.seekbar-bar')!.parentNode! as HTMLElement;
@@ -347,28 +347,28 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			})()
 		);
 		/**
-		 * Remove chapter DOM elements, done before rendering and uninstall
+		 * Remove marker DOM elements, done before rendering and uninstall
 		 */
-		const removeDOMChapters = () => {
-			document.querySelectorAll('.r2_chapter').forEach(e => e.remove());
+		const removeDOMMarkers = () => {
+			document.querySelectorAll('.r2_marker').forEach(e => e.remove());
 		};
 
-		chapterChangeHandlers.push(function renderChapters() {
-			removeDOMChapters();
+		markerChangeHandlers.push(function renderMarkers() {
+			removeDOMMarkers();
 			const bar = document.querySelector<HTMLElement>('.seekbar-bar')!;
-			for (const chapter of chapters) {
+			for (const marker of markers) {
 				const node = document.createElement('button');
-				node.className = 'r2_chapter';
-				node.title = chapter.name;
+				node.className = 'r2_marker';
+				node.title = marker.name;
 				node.style.position = 'absolute';
 				node.style.width = '1.75px';
 				node.style.height = '10px';
 				node.style.backgroundColor = 'black';
 
-				node.style.left = getTimeXY(chapter.seconds).x + 'px';
+				node.style.left = getTimeXY(marker.seconds).x + 'px';
 
-				node.addEventListener('click', seekToChapter.bind(null, chapter));
-				node.addEventListener('contextmenu', startEditingChapter.bind(null, chapter, true, true));
+				node.addEventListener('click', seekToMarker.bind(null, marker));
+				node.addEventListener('contextmenu', startEditingMarker.bind(null, marker, true, true));
 				bar.appendChild(node);
 			}
 		});
@@ -381,7 +381,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 					.textContent!.split(':')
 					.map(Number)
 			);
-		addUninstallationStep(removeDOMChapters);
+		addUninstallationStep(removeDOMMarkers);
 	} else if (isLive()) {
 		/**
 		 * Return the number of seconds of delay as reported by Twitch
@@ -421,27 +421,27 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		};
 	}
 
-	const chapterList = generateChapterList(
-		chapters,
+	const markerList = generateMarkerList(
+		markers,
 		getCurrentTimeLive,
-		handleChapterUpdate,
+		handleMarkerUpdate,
 		setTime,
-		startEditingChapter,
-		seekToChapter
+		startEditingMarker,
+		seekToMarker
 	);
-	addUninstallationStep(chapterList.uninstallChapterList);
-	chapterChangeHandlers.push(chapterList.renderChapterList);
+	addUninstallationStep(markerList.uninstallMarkerList);
+	markerChangeHandlers.push(markerList.renderMarkerList);
 
-	async function handleChapterUpdate() {
-		for (const func of chapterChangeHandlers) await func();
+	async function handleMarkerUpdate() {
+		for (const func of markerChangeHandlers) await func();
 	}
 
 	/**
-	 * Add chapter to current time
+	 * Add marker to current time
 	 */
-	const addChapterHere = async () => {
+	const addMarkerHere = async () => {
 		let seconds = await getCurrentTimeLive();
-		let name = await dialog('prompt', 'Chapter Name');
+		let name = await dialog('prompt', 'Marker Name');
 		if (!name) return;
 
 		if (['t+', 't-'].some(cmd => name.toLowerCase().startsWith(cmd))) {
@@ -451,19 +451,19 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 			name = name.substring(2 + offset.toString().length).trim();
 		}
 
-		chapters.push({ seconds, name });
+		markers.push({ seconds, name });
 		if (isLive())
 			navigator.clipboard.writeText(
 				`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(seconds)}`
 			);
-		return handleChapterUpdate();
+		return handleMarkerUpdate();
 	};
 
 	/**
-	 * Export chapter objects into serialized format
+	 * Export markers objects into serialized format
 	 */
 	const exportSerialized = async () => {
-		await navigator.clipboard.writeText(getUIFormatter().serializeAll(chapters));
+		await navigator.clipboard.writeText(getUIFormatter().serializeAll(markers));
 		return dialog('alert', 'Exported to Clipboard!');
 	};
 
@@ -471,15 +471,15 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 * Menu for importing or exporting
 	 */
 	const menu = async () => {
-		const choice = await dialog('choose', 'Twitch Chapters Menu', () => ({
+		const choice = await dialog('choose', 'R2 Twitch User-Markers', () => ({
 			Export: 'x',
 			Edit: 'e',
 			List: 'l',
 		}));
 		if (!choice) return;
 		else if (choice === 'x') return exportSerialized();
-		else if (choice === 'e') return editAllChapters();
-		else if (choice === 'l') return chapterList.setChapterList(true);
+		else if (choice === 'e') return editAllMarkers();
+		else if (choice === 'l') return markerList.setMarkerList(true);
 	};
 
 	/**
@@ -490,18 +490,18 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	const keydownHandler = (e: KeyboardEvent) => {
 		if (['INPUT', 'TEXTAREA'].includes((e.target! as HTMLElement).tagName)) return;
 		if (e.key === 'u') menu();
-		if (e.key === 'b') addChapterHere();
+		if (e.key === 'b') addMarkerHere();
 	};
 	window.addEventListener('keydown', keydownHandler);
 	addUninstallationStep(() => window.removeEventListener('keydown', keydownHandler));
 
-	const resizeObserver = new ResizeObserver(handleChapterUpdate);
+	const resizeObserver = new ResizeObserver(handleMarkerUpdate);
 	resizeObserver.observe(document.querySelector<HTMLVideoElement>('video')!);
 	addUninstallationStep(() =>
 		resizeObserver.unobserve(document.querySelector<HTMLVideoElement>('video')!)
 	);
 
-	if (chapters.length) await handleChapterUpdate();
+	if (markers.length) await handleMarkerUpdate();
 
 	log('Setup Ended');
 })();
