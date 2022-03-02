@@ -2,6 +2,8 @@
 
 Do you wish you, average Twitch user, could add markers to Twitch VODs - both live and after the fact? Well this is the userscript for you!
 
+https://user-images.githubusercontent.com/9403665/155326353-e6eca746-ebb3-421b-99d1-674666e4554d.mp4
+
 This userscript allows users to add markers to a VOD, additionally allowing the adjustment of all added markers, combined with easy importing and exporting of the marker data.
 
 > I personally use ViolentMonkey to manage my userscripts, but this should be compatible with all the userscript managers available
