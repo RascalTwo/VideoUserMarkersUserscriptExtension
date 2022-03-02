@@ -4,7 +4,7 @@ import { dialog } from './ui';
 const GQL_HEADERS = {
 	// cspell:disable-next-line
 	'client-id': 'kimne78kx3ncx6brgo4mv6wki5h1ko',
-}
+};
 
 let userID: string | undefined = undefined;
 let vid: string | undefined | null = undefined;
@@ -77,7 +77,11 @@ export function clearIDsCache() {
  * @returns {string}
  */
 export function getButtonClass() {
-	return document.querySelector('[data-a-target="top-nav-get-bits-button"]')?.className ?? '';
+	return (
+		document.querySelector('[data-a-target="top-nav-get-bits-button"]')?.className ??
+		document.querySelector('[data-a-target="login-button"]')?.className ??
+		''
+	);
 }
 
 /**

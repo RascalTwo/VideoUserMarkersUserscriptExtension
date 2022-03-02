@@ -218,7 +218,12 @@ export const generateMarkerList = (
 		const list = existingList || (document.createElement('ul') as HTMLUListElement);
 		if (!existingList) {
 			const keydownHandler = (e: KeyboardEvent) => {
-				if (['INPUT', 'TEXTAREA'].includes((e.target as HTMLElement)?.tagName)) return;
+				const target = e.target! as HTMLElement;
+				if (
+					['INPUT', 'TEXTAREA'].includes(target.tagName) ||
+					target.getAttribute('role') === 'textbox'
+				)
+					return;
 
 				const { key } = e;
 				const active = list.querySelector('li[data-r2_active_marker="true"]');

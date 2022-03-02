@@ -30,6 +30,7 @@ import type { Marker } from './types';
 
 declare global {
 	interface Window {
+		r2_clipboard?: string;
 		r2_twitch_user_markers?: {
 			uninstall: () => Promise<void>;
 		};
@@ -79,8 +80,19 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 	while (true) {
 		await delay(1000);
-		if (!document.querySelector('[data-a-target="player-volume-slider"]')) continue;
-		if (!document.querySelector(TOP_BAR_SELECTOR)) continue;
+		if (!document.querySelector('[data-a-target="player-volume-slider"]')) {
+			log('Waiting for Volume...');
+			continue;
+		}
+		if (!document.querySelector(TOP_BAR_SELECTOR)) {
+			log('Waiting for Video Info Bar...');
+			continue;
+		}
+		if (document.querySelector('[data-a-target="video-ad-countdown"]')) {
+			log('Waiting for Advertisement...');
+			await delay(5000);
+			continue;
+		}
 		if (isLive()) break;
 		if (isVOD() && document.querySelector('.seekbar-bar')) break;
 
@@ -90,6 +102,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	addUninstallationStep(
 		(() => {
 			const ui = document.createElement('details');
+			ui.className = 'r2_markers_ui';
 			ui.style.margin = '0.5em';
 			ui.style.padding = '0.5em';
 			ui.style.border = '1px solid white';
@@ -449,6 +462,12 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 		for (const func of markerChangeHandlers) await func();
 	}
 
+	const writeToClipboard = (text: string) => {
+		return navigator.clipboard.writeText(text).then(() => {
+			window.r2_clipboard = text;
+		});
+	};
+
 	/**
 	 * Add marker to current time
 	 */
@@ -466,7 +485,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 
 		markers.push({ seconds, name });
 		if (isLive())
-			navigator.clipboard.writeText(
+			writeToClipboard(
 				`https://twitch.tv/videos/${await getVideoID(false)}?t=${generateTwitchTimestamp(seconds)}`
 			);
 		return handleMarkerUpdate();
@@ -476,7 +495,7 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 * Export markers objects into serialized format
 	 */
 	const exportSerialized = async () => {
-		await navigator.clipboard.writeText(getUIFormatter().serializeAll(markers));
+		await writeToClipboard(getUIFormatter().serializeAll(markers));
 		return dialog('alert', 'Exported to Clipboard!');
 	};
 
@@ -501,7 +520,9 @@ const TOP_BAR_SELECTOR = '[class="channel-info-content"] [class*="metadata-layou
 	 * @param {KeyboardEvent} e
 	 */
 	const keydownHandler = (e: KeyboardEvent) => {
-		if (['INPUT', 'TEXTAREA'].includes((e.target! as HTMLElement).tagName)) return;
+		const target = e.target! as HTMLElement;
+		if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.getAttribute('role') === 'textbox')
+			return;
 		if (e.key === 'u') menu();
 		if (e.key === 'b') addMarkerHere();
 	};
