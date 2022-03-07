@@ -400,8 +400,6 @@ export const generateMarkerList = (
 					});
 				}
 				timeText.addEventListener('contextmenu', e => {
-					makeActive(li);
-
 					startEditingMarker(getElementMarker(e)!, true, false, e);
 				});
 				time.appendChild(timeText);
