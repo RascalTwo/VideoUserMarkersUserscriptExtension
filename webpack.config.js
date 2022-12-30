@@ -1,8 +1,16 @@
+const fs = require('fs');
 const path = require('path');
 const webpack = require('webpack')
 
 const mode = process.env.NODE_ENV || 'development';
 const isProd = mode === 'production';
+
+const packageJSON = require('./package.json');
+const manifest = require('./webext/manifest.json');
+if (packageJSON.version !== manifest.version) {
+  manifest.version = packageJSON.version;
+  fs.writeFileSync(path.resolve(__dirname, 'webext/manifest.json'), JSON.stringify(manifest, null, 2));
+}
 
 module.exports = {
   mode,
