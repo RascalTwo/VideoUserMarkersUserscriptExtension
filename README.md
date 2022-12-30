@@ -10,12 +10,26 @@ This userscript allows users to add markers to a Video, additionally allowing th
 
 ## Installation
 
+### Userscript
+
 - Create a new UserScript
 - Copy the contents of [`dist/userscript.js`](../../blob/dist/dist/userscript.js) into it
 
+### Web Extension
+
+- Download [`dist/extension.zip`](../../blob/dist/dist/extension.zip)
+- Firefox:
+  - Go to `about:debugging`
+  - Click `Load Temporary Add-on`
+  - Choose the downloaded `extension.zip`
+- Chrome:
+  - Go to `chrome://extensions`
+  - Click `Load Unpacked`
+  - Choose the downloaded `extension.zip`
+
 ### Building
 
-This is written in TypeScript, so after running `npm install`, one can run `npm run build` to generate the [`dist/userscript.js`](../../blob/dist/dist/userscript.js) file.
+This is written in TypeScript via Webpack, so after running `npm install`, one can run `npm run build` to generate the assets in the `dist` directory.
 
 ## Usage
 
