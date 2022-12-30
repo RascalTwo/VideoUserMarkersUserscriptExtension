@@ -1,12 +1,12 @@
-# R2 Twitch User-Markers
+# Video User Markers
 
-Do you wish you, average Twitch user, could add markers to Twitch VODs - both live and after the fact? Well this is the userscript for you!
+Do you wish you, average Twitch/YouTube user, could add markers to Twitch/YouTube Videos - both live and after the fact? Well this is the userscript/extension for you!
 
 https://user-images.githubusercontent.com/9403665/155326353-e6eca746-ebb3-421b-99d1-674666e4554d.mp4
 
-This userscript allows users to add markers to a VOD, additionally allowing the adjustment of all added markers, combined with easy importing and exporting of the marker data.
+This userscript allows users to add markers to a Video, additionally allowing the adjustment of all added markers, combined with easy importing and exporting of the marker data.
 
-> I personally use ViolentMonkey to manage my userscripts, but this should be compatible with all the userscript managers available
+> I personally use ViolentMonkey to manage my userscripts, but this should be compatible with all the userscript managers available and both Firefox and Chrome as a Web Extension
 
 ## Installation
 
@@ -19,7 +19,7 @@ This is written in TypeScript, so after running `npm install`, one can run `npm 
 
 ## Usage
 
-When you're on a valid page `R2 Markers` will appear below the bottom-right corner of the video.
+When you're on a valid page `Video User Markers` will appear below the bottom-right corner of the video.
 
 From there you can add a new marker, or open the menu - which allows you to import/export and view the marker list.
 
@@ -29,13 +29,13 @@ In addition, the current marker name is visible just right of the player volume 
 
 ### Export
 
-Copies the textual marker content to your clipboard.
+Copies the textual marker content to your clipboard or uploads it to the cloud.
 
 ### Edit
 
 Allows direct editing of the marker text, so you can delete lines to remove markers, add lines to add markers, and easily import by pasting your previously created markers here.
 
-### VOD-Only
+### Video-Only
 
 All marker markers are visible on the timeline, in addition to the marker name being shown while seeking said timeline.
 
@@ -51,7 +51,7 @@ The timestamp also supports scrolling to edit; scrolling up decreases the time b
 
 You can both resize the chapter list - resize control is in the bottom-right - and click-and-drag anywhere to drag the list to your preferred position.
 
-### VOD
+### Video
 
 When adjusting the timestamp of a marker, the player automatically seeks to the newly-set timestamp, so you can see in realtime if it's where you desire it to be.
 
@@ -79,11 +79,11 @@ These shortcuts exist only when the marker list is open:
 
 ## Storage
 
-All the markers are stored in `localStorage` based on the archival VOD, so you won't lose them until you clear this.
+All the markers are stored in `localStorage` based on the archival Video, so you won't lose them until you clear this.
 
 ## Limitations
 
-If watching a Live stream that is not archiving the stream to a VOD, while you can still add markers, they will be inaccessible after the stream ends as there is no VOD to visit to view them.
+If watching a Live stream that is not archiving the stream to a Video, while you can still add markers, they will be inaccessible after the stream ends as there is no Video to visit to view them.
 
 ## Roadmap
 

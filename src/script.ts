@@ -1,6 +1,6 @@
 //
 // ==UserScript==
-// @name     R2 Twitch User-Markers
+// @name     R2 Video User Markers
 // @version  1
 // @grant    none
 // @match    https://www.twitch.tv/*
@@ -243,8 +243,8 @@ log('Script Started');
 			const summary = document.querySelector('.r2_markers_ui')?.querySelector('summary');
 			if (!summary) return;
 
-			if (collection!.updatedAt !== updatedAt) summary.textContent = `R2 Markers *`;
-			else summary.textContent = `R2 Markers`;
+			if (collection!.updatedAt !== updatedAt) summary.textContent = `Video User Markers *`;
+			else summary.textContent = `Video User Markers`;
 		},
 	];
 

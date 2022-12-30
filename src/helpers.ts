@@ -4,7 +4,7 @@ import { Cacheable, Collection, IPlatform } from './types';
 import { YouTube } from './youtube';
 
 export function log(...args: any) {
-	console.log('[R2 Twitch User-Markers]', ...args);
+	console.log('[R2 Video User Markers]', ...args);
 }
 
 /**
