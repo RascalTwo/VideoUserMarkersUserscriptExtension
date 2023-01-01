@@ -1,6 +1,6 @@
 {
   "name": "video-user-markers-userscript-extension",
-  "version": "1.10.5",
+  "version": "1.10.6",
   "description": "",
   "scripts": {
     "prebuild": "node ./scripts/prebuild.js",

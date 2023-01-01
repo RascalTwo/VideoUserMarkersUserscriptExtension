@@ -21,6 +21,7 @@ import {
 	NOOP,
 	getPlatform,
 	isDarkMode,
+	writeToClipboard,
 } from './helpers';
 import { generateMarkerList as generateMarkerList } from './ui';
 import type { Marker } from './types';
@@ -30,6 +31,7 @@ import {
 	getCurrentUser,
 	upsertCollection,
 } from './backend';
+import { createMarkerEditors } from './marker-editors';
 
 declare global {
 	interface Window {
@@ -61,7 +63,6 @@ log('Script Started');
 		log('Waiting for complete document...');
 	}
 
-	platform.shouldActivate();
 	const addUninstallationStep = createUninstaller(
 		main,
 		platform.shouldActivate() ? undefined : platform.shouldActivate.bind(platform)
@@ -126,7 +127,7 @@ log('Script Started');
 			markersButton.textContent = 'Menu';
 			markersButton.className = platform.getButtonClass();
 			markersButton.style.flex = '1';
-			markersButton.addEventListener('click', () => menu());
+			markersButton.addEventListener('click', () => mainMenu());
 			wrapper.appendChild(markersButton);
 
 			const addMarker = document.createElement('button');
@@ -141,88 +142,7 @@ log('Script Started');
 		})()
 	);
 
-	function seekToMarker(marker: Marker, e: Event) {
-		// Stop native seekbar behavior
-		e?.stopImmediatePropagation();
-		e?.stopPropagation();
-		return platform!.seekTo(marker.when);
-	}
-
-	function startEditingMarker(marker: Marker, seconds: boolean, name: boolean, e: Event) {
-		// Disable context menu
-		e?.preventDefault();
-		// Stop native seekbar behavior
-		e?.stopImmediatePropagation();
-		e?.stopPropagation();
-
-		if (seconds && name) return editMarker(marker);
-		else if (seconds) return editMarkerSeconds(marker);
-		return editMarkerName(marker);
-	}
-
-	async function editMarkerSeconds(marker: Marker) {
-		const formatter = getUIFormatter();
-		const response = await platform!.dialog('prompt', 'Edit Time:', () => [
-			formatter.multiline ? 'textarea' : 'input',
-			formatter.serializeSeconds(marker.when),
-		]);
-		if (response === null) return;
-
-		const seconds = formatter.deserializeSeconds(response);
-		if (!seconds) return;
-
-		marker.when = seconds;
-		return handleMarkerUpdate(true);
-	}
-
-	async function editMarkerName(marker: Marker) {
-		const formatter = getUIFormatter();
-		const response = await platform!.dialog('prompt', 'Edit Name:', () => [
-			formatter.multiline ? 'textarea' : 'input',
-			formatter.serializeName(marker.title),
-		]);
-		if (response === null) return;
-
-		const name = formatter.deserializeName(response);
-		if (!name) return;
-
-		marker.title = name;
-		return handleMarkerUpdate(true);
-	}
-
-	async function editMarker(marker: Marker) {
-		const formatter = getUIFormatter();
-		const response = await platform!.dialog('prompt', 'Edit Marker:', () => [
-			formatter.multiline ? 'textarea' : 'input',
-			formatter.serializeAll([marker])[0],
-		]);
-		if (response === null) return;
-
-		const edited = formatter.deserializeAll(response)[0];
-		if (!edited) return;
-
-		Object.assign(marker, edited, { _id: marker._id, collectionId: marker.collectionId });
-		return handleMarkerUpdate(true);
-	}
-
-	async function editAllMarkers() {
-		const formatter = getUIFormatter();
-		const response = await platform!.dialog('prompt', 'Edit Serialized Markers', () => [
-			'textarea',
-			formatter.serializeAll(collection!.markers!),
-		]);
-		if (response === null) return;
-		collection!.markers!.splice(
-			0,
-			collection!.markers!.length,
-			...(formatter.deserializeAll(response) as Marker[]).map((newMarker, i) => ({
-				...newMarker,
-				_id: collection!.markers![i]?._id || ObjectId(),
-				collectionId: collection!.markers![i]?.collectionId || collection!._id,
-			}))
-		);
-		return handleMarkerUpdate(true);
-	}
+	const { startEditingMarker, editAllMarkers } = createMarkerEditors(platform, collection, handleMarkerUpdate);
 
 	/**
 	 * Get the current time in seconds of the player
@@ -247,6 +167,13 @@ log('Script Started');
 			else summary.textContent = `Video User Markers`;
 		},
 	];
+
+	function seekToMarker(marker: Marker, e: Event) {
+		// Stop native seekbar behavior
+		e?.stopImmediatePropagation();
+		e?.stopPropagation();
+		return platform!.seekTo(marker.when);
+	}
 
 	const markerList = generateMarkerList(
 		collection,
@@ -277,160 +204,157 @@ log('Script Started');
 		markerChangeHandlers.push(markerChangeHandler);
 	}
 
-	const writeToClipboard = (text: string) => {
-		return navigator.clipboard.writeText(text).then(() => {
-			window.r2_clipboard = text;
-		});
-	};
+	const { addMarkerHere, mainMenu } = (function createMenus() {
+		/**
+		 * Add marker to current time
+		 */
+		const addMarkerHere = async () => {
+			let seconds = await platform.getCurrentTimeLive();
+			let name = await platform.dialog('prompt', 'Marker Name');
+			if (!name) return;
 
-	/**
-	 * Add marker to current time
-	 */
-	const addMarkerHere = async () => {
-		let seconds = await platform.getCurrentTimeLive();
-		let name = await platform.dialog('prompt', 'Marker Name');
-		if (!name) return;
+			if (['t+', 't-'].some(cmd => name.toLowerCase().startsWith(cmd))) {
+				const direction = name[1] === '+' ? 1 : -1;
+				const offset = parseInt(name.substring(2));
+				if (!isNaN(offset)) seconds += offset * direction;
+				name = name.substring(2 + offset.toString().length).trim();
+			}
 
-		if (['t+', 't-'].some(cmd => name.toLowerCase().startsWith(cmd))) {
-			const direction = name[1] === '+' ? 1 : -1;
-			const offset = parseInt(name.substring(2));
-			if (!isNaN(offset)) seconds += offset * direction;
-			name = name.substring(2 + offset.toString().length).trim();
-		}
+			collection!.markers.push({
+				_id: ObjectId(),
+				collectionId: collection!._id,
+				when: seconds,
+				title: name,
+				description: '',
+			});
+			if (platform.isLive()) writeToClipboard(await platform.generateMarkerURL(seconds));
+			return handleMarkerUpdate(true);
+		};
 
-		collection!.markers.push({
-			_id: ObjectId(),
-			collectionId: collection!._id,
-			when: seconds,
-			title: name,
-			description: '',
-		});
-		if (platform.isLive()) writeToClipboard(await platform.generateMarkerURL(seconds));
-		return handleMarkerUpdate(true);
-	};
+		/**
+		 * Export markers objects into serialized format
+		 */
+		const exportToClipboard = async () => {
+			await writeToClipboard(getUIFormatter().serializeAll(collection!.markers));
+			return platform.dialog('alert', 'Exported to Clipboard!');
+		};
 
-	/**
-	 * Export markers objects into serialized format
-	 */
-	const exportToClipboard = async () => {
-		await writeToClipboard(getUIFormatter().serializeAll(collection!.markers));
-		return platform.dialog('alert', 'Exported to Clipboard!');
-	};
+		const exportToCloud = async () => {
+			if (!collection!.author) collection!.author = user!;
+			if (collection!.author?._id !== user!._id) {
+				await platform.dialog(
+					'choose',
+					`Export your own copy of ${collection!.author.username}s collection?`,
+					() => ({
+						Yes: 'y',
+						No: 'n',
+					})
+				);
+				collection!.author = user!;
+			}
+			const newTitle = await platform.dialog('prompt', 'Collection Title', () => [
+				'input',
+				collection!.title,
+			]);
+			if (!newTitle) return;
+			collection!.title = newTitle;
 
-	const exportToCloud = async () => {
-		if (!collection!.author) collection!.author = user!;
-		if (collection!.author?._id !== user!._id) {
-			await platform.dialog(
-				'choose',
-				`Export your own copy of ${collection!.author.username}s collection?`,
-				() => ({
-					Yes: 'y',
-					No: 'n',
-				})
+			const newDescription = await platform.dialog('prompt', 'Collection Description', () => [
+				'textarea',
+				collection!.description,
+			]);
+			if (!newDescription) return;
+			collection!.description = newDescription;
+
+			const newPublicity = await platform.dialog('choose', 'Collection Publicity', () => ({
+				Public: 'public',
+				Private: 'private',
+			}));
+			if (newPublicity === 'public') collection!.public = true;
+			else if (newPublicity === 'private' && collection!.public) delete collection!.public;
+
+			const updatedCollection = await upsertCollection(collection!);
+			if (!updatedCollection) return;
+
+			Object.assign(collection, updatedCollection);
+			updatedAt = collection.updatedAt;
+
+			await handleMarkerUpdate(false);
+
+			return platform.dialog('alert', 'Exported to Cloud!');
+		};
+
+		const importMenu = async () => {
+			const collectionId = await platform.dialog('choose', 'Import from...', () =>
+				otherCollections.reduce((acc, collection) => {
+					acc[`${collection.author ? `[${collection.author.username}] ` : ''}${collection.title}`] = collection._id;
+					return acc;
+				}, {} as Record<string, string>)
 			);
-			collection!.author = user!;
-		}
-		const newTitle = await platform.dialog('prompt', 'Collection Title', () => [
-			'input',
-			collection!.title,
-		]);
-		if (!newTitle) return;
-		collection!.title = newTitle;
+			if (!collectionId) return;
+			const otherCollection = otherCollections.find(c => c._id === collectionId)!;
+			Object.assign(collection, otherCollection.author._id === 'WEBSITE' ? otherCollection : (await getCollection(collectionId))!);
+			handleMarkerUpdate(true);
+		};
 
-		const newDescription = await platform.dialog('prompt', 'Collection Description', () => [
-			'textarea',
-			collection!.description,
-		]);
-		if (!newDescription) return;
-		collection!.description = newDescription;
+		const importExportMenu = async () => {
+			otherCollections = await platform.getCollections();
 
-		const newPublicity = await platform.dialog('choose', 'Collection Publicity', () => ({
-			Public: 'public',
-			Private: 'private',
-		}));
-		if (newPublicity === 'public') collection!.public = true;
-		else if (newPublicity === 'private' && collection!.public) delete collection!.public;
+			if (!otherCollections.length) return exportMenu();
 
-		const updatedCollection = await upsertCollection(collection!);
-		if (!updatedCollection) return;
+			const choice = await platform.dialog('choose', 'Import/Export', () => ({
+				[`Import (${otherCollections.length})`]: 'i',
+				Export: 'e',
+			}));
+			if (!choice) return;
+			if (choice === 'i') return importMenu();
+			if (choice === 'e') return exportMenu();
+		};
 
-		Object.assign(collection, updatedCollection);
-		updatedAt = collection.updatedAt;
+		const exportMenu = async () => {
+			if (!user) return exportToClipboard();
+			const choice = await platform.dialog('choose', 'Destination', () => ({
+				Clipboard: 'b',
+				Cloud: 'c',
+			}));
+			if (!choice) return;
+			if (choice === 'b') return exportToClipboard();
+			if (choice === 'c') return exportToCloud();
+		};
 
-		await handleMarkerUpdate(false);
+		const login = async () => {
+			const username = await platform.dialog('prompt', 'Username');
+			if (!username) return;
 
-		return platform.dialog('alert', 'Exported to Cloud!');
-	};
+			const password = await platform.dialog('prompt', 'Password');
+			if (!password) return;
 
-	const importMenu = async () => {
-		const collectionId = await platform.dialog('choose', 'Import from...', () =>
-			otherCollections.reduce((acc, collection) => {
-				acc[`${collection.author ? `[${collection.author.username}] ` : ''}${collection.title}`] = collection._id;
-				return acc;
-			}, {} as Record<string, string>)
-		);
-		if (!collectionId) return;
-		const otherCollection = otherCollections.find(c => c._id === collectionId)!;
-		Object.assign(collection, otherCollection.author._id === 'WEBSITE' ? otherCollection : (await getCollection(collectionId))!);
-		handleMarkerUpdate(true);
-	};
+			try {
+				await generateToken(username, password);
+				user = await getCurrentUser();
+			} catch (e: any) {
+				return platform.dialog('alert', e.toString());
+			}
+		};
 
-	const importExportMenu = async () => {
-		otherCollections = await platform.getCollections();
-
-		if (!otherCollections.length) return exportMenu();
-
-		const choice = await platform.dialog('choose', 'Import/Export', () => ({
-			[`Import (${otherCollections.length})`]: 'i',
-			Export: 'e',
-		}));
-		if (!choice) return;
-		if (choice === 'i') return importMenu();
-		if (choice === 'e') return exportMenu();
-	};
-
-	const exportMenu = async () => {
-		if (!user) return exportToClipboard();
-		const choice = await platform.dialog('choose', 'Destination', () => ({
-			Clipboard: 'b',
-			Cloud: 'c',
-		}));
-		if (!choice) return;
-		if (choice === 'b') return exportToClipboard();
-		if (choice === 'c') return exportToCloud();
-	};
-
-	const login = async () => {
-		const username = await platform.dialog('prompt', 'Username');
-		if (!username) return;
-
-		const password = await platform.dialog('prompt', 'Password');
-		if (!password) return;
-
-		try {
-			await generateToken(username, password);
-			user = await getCurrentUser();
-		} catch (e: any) {
-			return platform.dialog('alert', e.toString());
-		}
-	};
-
-	/**
-	 * Menu for importing or exporting
-	 */
-	const menu = async () => {
-		const choice = await platform.dialog('choose', 'R2 Twitch User-Markers', () => ({
-			'Import/Export': 'x',
-			Edit: 'e',
-			List: 'l',
-			[user ? `Logout (${user.username})` : 'Login']: 'a',
-		}));
-		if (!choice) return;
-		else if (choice === 'x') return importExportMenu();
-		else if (choice === 'e') return editAllMarkers();
-		else if (choice === 'l') return markerList.setMarkerList(true);
-		else if (choice === 'a') return user ? (user = null) : login();
-	};
+		/**
+		 * Menu for importing or exporting
+		 */
+		const mainMenu = async () => {
+			const choice = await platform.dialog('choose', 'R2 Twitch User-Markers', () => ({
+				'Import/Export': 'x',
+				Edit: 'e',
+				List: 'l',
+				[user ? `Logout (${user.username})` : 'Login']: 'a',
+			}));
+			if (!choice) return;
+			else if (choice === 'x') return importExportMenu();
+			else if (choice === 'e') return editAllMarkers();
+			else if (choice === 'l') return markerList.setMarkerList(true);
+			else if (choice === 'a') return user ? (user = null) : login();
+		};
+		return { addMarkerHere, mainMenu }
+	})();
 
 	/**
 	 * Handle keyboard shortcuts
@@ -441,7 +365,7 @@ log('Script Started');
 		const target = e.target! as HTMLElement;
 		if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.getAttribute('role') === 'textbox')
 			return;
-		if (e.key === 'u') menu();
+		if (e.key === 'u') mainMenu();
 		if (e.key === 'b') addMarkerHere();
 	};
 	window.addEventListener('keypress', keypressHandler);
@@ -454,4 +378,4 @@ log('Script Started');
 
 log('Script Ended');
 
-export {};
+export { };

@@ -7,6 +7,12 @@ export function log(...args: any) {
 	console.log('[R2 Video User Markers]', ...args);
 }
 
+export const writeToClipboard = (text: string) => {
+	return navigator.clipboard.writeText(text).then(() => {
+		window.r2_clipboard = text;
+	});
+};
+
 /**
  * Do nothing
  */
