@@ -169,6 +169,10 @@ export async function saveToLocalStorage(
 	);
 }
 
+export async function deleteFromLocalStorage(entityID: string) {
+	localStorage.removeItem('r2_twitch_user_markers_v2_' + entityID);
+}
+
 const urlsHaveChanged = (oldURL: string, newURL: string, ...ignoredSearchParams: string[]) => {
 	const oldURLSearchParams = new URLSearchParams(oldURL.split('?')[1]);
 	const newURLSearchParams = new URLSearchParams(newURL.split('?')[1]);
@@ -204,7 +208,7 @@ export function createUninstaller(reinstall: () => void, shouldReinstall?: () =>
 		uninstallFuncs.push(step);
 	}
 
-	return addUninstallationStep;
+	return { addUninstallationStep, uninstall };
 }
 
 const timestampToHex = (timestamp: number) => Math.floor(timestamp).toString(16);

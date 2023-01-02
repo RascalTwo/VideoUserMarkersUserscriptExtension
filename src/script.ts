@@ -22,6 +22,7 @@ import {
 	getPlatform,
 	isDarkMode,
 	writeToClipboard,
+	deleteFromLocalStorage,
 } from './helpers';
 import { generateMarkerList as generateMarkerList } from './ui';
 import type { Marker } from './types';
@@ -63,7 +64,7 @@ log('Script Started');
 		log('Waiting for complete document...');
 	}
 
-	const addUninstallationStep = createUninstaller(
+	const { addUninstallationStep, uninstall } = createUninstaller(
 		main,
 		platform.shouldActivate() ? undefined : platform.shouldActivate.bind(platform)
 	);
@@ -115,7 +116,7 @@ log('Script Started');
 			ui.style.border = '1px solid ' + (isDarkMode() ? 'white' : 'black');
 
 			const summary = document.createElement('summary');
-			summary.textContent = 'R2 Markers';
+			summary.textContent = 'Video User Markers';
 			ui.appendChild(summary);
 
 			const wrapper = document.createElement('div');
@@ -204,6 +205,11 @@ log('Script Started');
 		markerChangeHandlers.push(markerChangeHandler);
 	}
 
+	function clearCollection() {
+		deleteFromLocalStorage(collection!.videoId);
+		uninstall().then(main);
+	}
+
 	const { addMarkerHere, mainMenu } = (function createMenus() {
 		/**
 		 * Add marker to current time
@@ -259,12 +265,10 @@ log('Script Started');
 			if (!newTitle) return;
 			collection!.title = newTitle;
 
-			const newDescription = await platform.dialog('prompt', 'Collection Description', () => [
+			collection!.description = await platform.dialog('prompt', 'Collection Description', () => [
 				'textarea',
 				collection!.description,
 			]);
-			if (!newDescription) return;
-			collection!.description = newDescription;
 
 			const newPublicity = await platform.dialog('choose', 'Collection Publicity', () => ({
 				Public: 'public',
@@ -305,10 +309,12 @@ log('Script Started');
 			const choice = await platform.dialog('choose', 'Import/Export', () => ({
 				[`Import (${otherCollections.length})`]: 'i',
 				Export: 'e',
+				Clear: 'c'
 			}));
 			if (!choice) return;
 			if (choice === 'i') return importMenu();
 			if (choice === 'e') return exportMenu();
+			if (choice === 'c') return clearCollection();
 		};
 
 		const exportMenu = async () => {
