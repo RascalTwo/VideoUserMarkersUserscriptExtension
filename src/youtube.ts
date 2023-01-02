@@ -37,7 +37,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 			author: { _id: 'WEBSITE', username: 'YouTube Video Author' },
 			title: this.getYTPlayerElement()!.getPlayer().getVideoData().title,
 			description: '',
-			markers: this.getYTPlayerElement()!.get('watchNextData').playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap?.[0].value.chapters.map((chapter: any) => ({
+			markers: this.getDescriptionChaptersMarkerMap(this.getYTPlayerElement()!.get('watchNextData'))?.chapters.map((chapter: any) => ({
 				_id: ObjectId(),
 				collectionId,
 				when: chapter.chapterRenderer.timeRangeStartMillis / 1000,
@@ -85,6 +85,10 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 		return document.querySelector('#ytd-player') as YTDPlayerElement | null;
 	}
 
+	getDescriptionChaptersMarkerMap(watchNextData: any) {
+		return watchNextData?.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap?.find((map: any) => map.key === 'DESCRIPTION_CHAPTERS')?.value;
+	}
+
 	async isReady(): Promise<boolean> {
 		return !!this.getYTPlayerElement()?.getPlayer();
 	}
@@ -101,8 +105,9 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 	): AsyncGenerator<() => void, any, unknown> {
 		yield () => {
 			const watchNextData = JSON.parse(JSON.stringify(this.getYTPlayerElement()!.get('watchNextData')));
-			let markersMap = watchNextData.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap?.[0].value;
+			let markersMap = this.getDescriptionChaptersMarkerMap(watchNextData);
 			if (!markersMap) {
+				const otherMarkersMap = watchNextData.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer?.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap?.filter((map: any) => map.key !== 'DESCRIPTION_CHAPTERS') || [];
 				const dpbr = {
 					decoratedPlayerBarRenderer: {
 						playerBar: {
@@ -114,7 +119,8 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 											chapters: [],
 											trackingParams: '',
 										}
-									}
+									},
+									...otherMarkersMap
 								],
 								visibleOnLoad: {
 									key: 'DESCRIPTION_CHAPTERS',
@@ -124,7 +130,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 					}
 				};
 				watchNextData.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer = dpbr;
-				markersMap = dpbr.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap[0].value;
+				markersMap = this.getDescriptionChaptersMarkerMap(watchNextData);
 			}
 			const chapters = markersMap.chapters;
 			const clickTrackingParams = markersMap.trackingParams;
@@ -182,7 +188,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 			this.getYTPlayerElement()!.set('watchNextData', watchNextData);
 			if (chapterMarkers.length) setTimeout(() => {
 				const watchNextData = JSON.parse(JSON.stringify(this.getYTPlayerElement()!.get('watchNextData')));
-				const markersMap = watchNextData.playerOverlays.playerOverlayRenderer.decoratedPlayerBarRenderer.decoratedPlayerBarRenderer.playerBar.multiMarkersPlayerBarRenderer.markersMap[0].value;
+				const markersMap = this.getDescriptionChaptersMarkerMap(watchNextData);
 				const chapters = markersMap.chapters;
 				chapters.push(chapterMarkers.at(-1));
 				this.getYTPlayerElement()!.set('watchNextData', watchNextData);
