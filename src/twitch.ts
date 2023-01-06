@@ -48,8 +48,12 @@ export class Twitch extends Cacheable implements IPlatform {
 
 		return {
 			_id: ObjectId(),
-			videoId: await this.getEntityID(),
-			type: this.name,
+			entity: {
+				_id: await this.getEntityID(),
+				type: this.name,
+				thumbnail: '',
+				createdAt: now,
+			},
 			author: currentUser,
 			// TODO - get title of stream/video
 			title: document.title,

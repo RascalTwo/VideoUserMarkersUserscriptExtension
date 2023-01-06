@@ -2,7 +2,7 @@ import { dialog, generateMarkerList } from './ui';
 
 export interface Marker {
 	_id: string;
-	collectionId: string;
+	collectionRef: string;
 	when: number;
 	title: string;
 	description: string;
@@ -15,10 +15,17 @@ export interface User {
 	token: string;
 }
 
+export interface Entity {
+	_id: string;
+	type: 'YouTube' | 'Twitch';
+	rawThumbnail?: string;
+	thumbnail: string;
+	createdAt: string;
+}
+
 export interface Collection {
 	_id: string;
-	videoId: string;
-	type: 'YouTube' | 'Twitch';
+	entity: Entity;
 	author: User;
 	title: string;
 	description: string;

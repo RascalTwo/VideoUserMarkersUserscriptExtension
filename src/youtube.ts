@@ -3,7 +3,12 @@ import { ObjectId } from './helpers';
 import { IPlatform, Cacheable, Collection, Marker, User, MarkerlessCollection } from './types';
 import { dialog } from './ui';
 
-interface YTDPlayerElement extends HTMLElement {
+interface PolymerElement extends HTMLElement {
+	get: (key: string) => any;
+	set: (key: string, value: any) => void;
+}
+
+interface YTDPlayerElement extends PolymerElement {
 	getPlayer(): {
 		seekTo: (seconds: number) => void;
 		getCurrentTime: () => number;
@@ -12,9 +17,7 @@ interface YTDPlayerElement extends HTMLElement {
 			isLive: boolean;
 			title: string;
 		};
-	},
-	get: (key: string) => any;
-	set: (key: string, value: any) => void;
+	}
 }
 
 export class YouTube extends Cacheable implements IPlatform, Cacheable {
@@ -32,8 +35,13 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 
 		const foundInitialCollection = {
 			_id: collectionId,
-			videoId: await this.getEntityID(),
-			type: this.name,
+			entity: {
+				_id: await this.getEntityID(),
+				type: this.name,
+				thumbnail: `https://img.youtube.com/vi/${await this.getEntityID()}/maxresdefault.jpg`,
+				rawThumbnail: `https://img.youtube.com/vi/${await this.getEntityID()}/maxresdefault.jpg`,
+				createdAt: new Date((document.querySelector('#info-container yt-formatted-string') as PolymerElement)!.get('__data').text.runs[2].text).toISOString(),
+			},
 			author: { _id: 'WEBSITE', username: 'YouTube Video Author' },
 			title: this.getYTPlayerElement()!.getPlayer().getVideoData().title,
 			description: '',
@@ -54,8 +62,12 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 
 		return foundMarkers.length ? {
 			_id: collectionId,
-			videoId: await this.getEntityID(),
-			type: this.name,
+			entity: {
+				_id: await this.getEntityID(),
+				type: this.name,
+				thumbnail: `https://img.youtube.com/vi/${await this.getEntityID()}/maxresdefault.jpg`,
+				createdAt: new Date((document.querySelector('#info-container yt-formatted-string') as PolymerElement)!.get('__data').text.runs[2].text).toISOString(),
+			},
 			author: currentUser,
 			title: this.getYTPlayerElement()!.getPlayer().getVideoData().title,
 			description: '',

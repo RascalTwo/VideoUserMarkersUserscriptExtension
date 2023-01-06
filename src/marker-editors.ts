@@ -56,7 +56,7 @@ export function createMarkerEditors(platform: IPlatform, collection: Collection,
 		const edited = formatter.deserializeAll(response)[0];
 		if (!edited) return;
 
-		Object.assign(marker, edited, { _id: marker._id, collectionId: marker.collectionId });
+		Object.assign(marker, edited, { _id: marker._id, collectionRef: marker.collectionRef });
 		return handleMarkerUpdate(true);
 	}
 
@@ -73,7 +73,7 @@ export function createMarkerEditors(platform: IPlatform, collection: Collection,
 			...(formatter.deserializeAll(response) as Marker[]).map((newMarker, i) => ({
 				...newMarker,
 				_id: collection!.markers![i]?._id || ObjectId(),
-				collectionId: collection!.markers![i]?.collectionId || collection!._id,
+				collectionRef: collection!.markers![i]?.collectionRef || collection!._id,
 			}))
 		);
 		return handleMarkerUpdate(true);

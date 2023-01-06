@@ -206,7 +206,7 @@ log('Script Started');
 	}
 
 	function clearCollection() {
-		deleteFromLocalStorage(collection!.videoId);
+		deleteFromLocalStorage(collection!.entity._id);
 		uninstall().then(main);
 	}
 
@@ -228,7 +228,7 @@ log('Script Started');
 
 			collection!.markers.push({
 				_id: ObjectId(),
-				collectionId: collection!._id,
+				collectionRef: collection!._id,
 				when: seconds,
 				title: name,
 				description: '',

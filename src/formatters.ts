@@ -57,7 +57,7 @@ export const FORMATTERS = {
 				.filter(Boolean)) {
 				const [dhms, title, description] = line.split('\t');
 				const when = DHMStoSeconds(dhms.split(':').map(Number));
-				yield { _id: ObjectId(), collectionId: ObjectId(), title, when, description };
+				yield { _id: ObjectId(), collectionRef: ObjectId(), title, when, description };
 			}
 		}
 		static deserializeAll(content: string) {
