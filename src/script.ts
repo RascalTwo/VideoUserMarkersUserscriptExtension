@@ -116,7 +116,8 @@ log('Script Started');
 			ui.style.border = '1px solid ' + (isDarkMode() ? 'white' : 'black');
 
 			const summary = document.createElement('summary');
-			summary.textContent = 'Video User Markers';
+			const otherCollectionCount = otherCollections.filter(c => c.author._id !== 'AUTHOR' && c.author._id !== user?._id).length
+			summary.textContent = `Video User Markers (${otherCollectionCount})`;
 			ui.appendChild(summary);
 
 			const wrapper = document.createElement('div');
@@ -164,8 +165,9 @@ log('Script Started');
 			const summary = document.querySelector('.r2_markers_ui')?.querySelector('summary');
 			if (!summary) return;
 
-			if (collection!.updatedAt !== updatedAt) summary.textContent = `Video User Markers *`;
-			else summary.textContent = `Video User Markers`;
+			const otherCollectionCount = otherCollections.filter(c => c.author._id !== 'AUTHOR' && c.author._id !== user?._id).length
+			if (collection!.updatedAt !== updatedAt) summary.textContent = `Video User Markers (${otherCollectionCount})*`;
+			else summary.textContent = `Video User Markers (${otherCollectionCount})`;
 		},
 	];
 
