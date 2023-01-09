@@ -94,11 +94,17 @@ log('Script Started');
 			return { collection: null, updatedAt: '' };
 		}
 		const foundMarkers = FORMATTERS[formatter].deserializeAll(rawMarkers || '[]') as Marker[];
-		const initialCollection = await platform.createInitialCollection(foundMarkers, user)
-		const collection = foundCollection ?? initialCollection;
-		if (foundMarkers.length) collection.markers = foundMarkers;
-		if (!collection.markers?.length) collection.markers = foundMarkers
-		return { collection, updatedAt };
+		if (foundCollection) {
+			if (foundMarkers.length) foundCollection.markers = foundMarkers;
+			return { collection: foundCollection, updatedAt };
+		}
+
+		const firstOther = otherCollections.find(c => c.author._id !== 'AUTHOR');
+		if (firstOther) {
+			return { collection: (await getCollection(firstOther._id))!, updatedAt };
+		}
+
+		return { collection: await platform.createInitialCollection(foundMarkers, user), updatedAt };
 	})();
 	const collection = _collection;
 
