@@ -61,6 +61,9 @@ export interface IPlatform {
 	dialog(...args: ParametersExceptFirst<typeof dialog>): ReturnType<typeof dialog>;
 	createInitialCollection(foundMarkers: Marker[], currentUser: User | null): Promise<Collection>;
 	getCollections(): Promise<MarkerlessCollection[]>;
+	isPlaying(): Promise<boolean>
+	play(): Promise<void>
+	pause(): Promise<void>
 }
 
 export type ParametersExceptFirst<F> = F extends (arg0: any, ...rest: infer R) => any ? R : never;

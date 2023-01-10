@@ -218,7 +218,43 @@ log('Script Started');
 		uninstall().then(main);
 	}
 
-	const { addMarkerHere, mainMenu } = (function createMenus() {
+	async function seekRelative(change: number, moveCurrentMarker: boolean) {
+		let seconds = await platform!.getCurrentTimeLive();
+		seconds += change;
+		if (moveCurrentMarker) {
+			const marker = collection!.markers.filter(m => Math.floor(m.when) <= seconds).slice(-1)[0]
+			if (marker) {
+				marker.when = seconds;
+				await handleMarkerUpdate(true);
+			}
+		}
+		return platform!.seekTo(seconds);
+	}
+
+	async function seekRelativeMarker(change: number) {
+		const seconds = await platform!.getCurrentTimeLive();
+		const marker = collection!.markers.filter(m => Math.floor(m.when) <= seconds).slice(-1)[0]
+		if (!marker) return;
+
+		let index = collection!.markers.indexOf(marker);
+		index += change;
+		if (index < 0) index = 0;
+		if (index >= collection!.markers.length) index = collection!.markers.length - 1;
+		return platform!.seekTo(collection!.markers[index].when);
+	}
+
+	async function updateCurrentMarker(what: 'title' | 'when') {
+		const seconds = await platform!.getCurrentTimeLive()
+		const marker = collection!.markers.filter(m => Math.floor(m.when) <= seconds).slice(-1)[0]
+		return startEditingMarker(marker, what === 'when', what === 'title');
+	}
+
+	async function togglePlayState() {
+		if (await platform!.isPlaying()) return platform!.pause();
+		return platform!.play();
+	}
+
+	const { addMarkerHere, mainMenu, showKeyboardShortcuts } = (function createMenus() {
 		/**
 		 * Add marker to current time
 		 */
@@ -351,6 +387,29 @@ log('Script Started');
 			}
 		};
 
+		const showKeyboardShortcuts = async () => {
+			await platform.dialog('alert', 'Keyboard Shortcuts:<br/>' + Object.entries({
+				'K / Space': 'Pause/Play',
+				'S / Ctrl + Left Arrow': 'Seek to next marker',
+				'W / Ctrl + Right Arrow': 'Seek to previous marker',
+				'J': 'Seek back 10 seconds',
+				'L': 'Seek forward 10 seconds',
+				'Left Arrow': 'Seek back 5 seconds',
+				'Right Arrow': 'Seek forward 5 seconds',
+				',': 'Seek back 1 frame',
+				'.': 'Seek forward 1 frame',
+				'Q': 'Seek back 1 second',
+				'E': 'Seek forward 1 second',
+				'B': 'Add marker at current time',
+				'N': 'Edit marker title',
+				'T': 'Edit marker time',
+				'U': 'Open menu',
+				'Shift + ?': 'Show this dialog',
+				'': '',
+				'Holding Shift + Any seek key': 'Seek & update current marker',
+			}).map(([key, action]) => `${key} -> ${action}`).join('<br/>'));
+		}
+
 		/**
 		 * Menu for importing or exporting
 		 */
@@ -367,7 +426,7 @@ log('Script Started');
 			else if (choice === 'l') return markerList.setMarkerList(true);
 			else if (choice === 'a') return user ? (user = null) : login();
 		};
-		return { addMarkerHere, mainMenu }
+		return { addMarkerHere, mainMenu, showKeyboardShortcuts }
 	})();
 
 	/**
@@ -375,12 +434,33 @@ log('Script Started');
 	 *
 	 * @param {KeyboardEvent} e
 	 */
-	const keypressHandler = (e: KeyboardEvent) => {
+	const keypressHandler = async (e: KeyboardEvent) => {
 		const target = e.target! as HTMLElement;
-		if (['INPUT', 'TEXTAREA'].includes(target.tagName) || target.getAttribute('role') === 'textbox')
+		if (e.repeat || ['INPUT', 'TEXTAREA'].includes(target.tagName) || target.getAttribute('role') === 'textbox')
 			return;
-		if (e.key === 'u') mainMenu();
-		if (e.key === 'b') addMarkerHere();
+
+		const key = e.key.toUpperCase()
+		if (key === 'K' || key === ' ') await togglePlayState();
+		else if (key === 'W' || (e.ctrlKey && key === 'ARROWLEFT')) await seekRelativeMarker(-1);
+		else if (key === 'S' || (e.ctrlKey && key === 'ARROWRIGHT')) await seekRelativeMarker(1);
+		else if (key === 'J') await seekRelative(-10, e.shiftKey);
+		else if (key === 'L') await seekRelative(10, e.shiftKey);
+		else if (key === 'ARROWLEFT') await seekRelative(-5, e.shiftKey);
+		else if (key === 'ARROWRIGHT') await seekRelative(5, e.shiftKey);
+		else if (key === ',') await seekRelative(-(1 / 30), e.shiftKey);
+		else if (key === '.') await seekRelative((1 / 30), e.shiftKey);
+		else if (key === 'Q') await seekRelative(-1, e.shiftKey);
+		else if (key === 'E') await seekRelative(1, e.shiftKey);
+		else if (key === 'B') await addMarkerHere();
+		else if (key === 'N') await updateCurrentMarker('title');
+		else if (key === 'T') await updateCurrentMarker('when');
+		else if (key === 'U') await mainMenu();
+		// M key is mute by default
+		else if (e.shiftKey && key === '?') await showKeyboardShortcuts();
+		else return; // Not a key we care about
+		e.preventDefault();
+		e.stopImmediatePropagation();
+		e.stopPropagation();
 	};
 	window.addEventListener('keypress', keypressHandler);
 	addUninstallationStep(() => window.removeEventListener('keypress', keypressHandler));

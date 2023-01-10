@@ -3,7 +3,7 @@ import { ObjectId } from "./helpers";
 import { Collection, IPlatform, Marker } from "./types";
 
 export function createMarkerEditors(platform: IPlatform, collection: Collection, handleMarkerUpdate: (dataChanged: boolean) => Promise<void>) {
-	function startEditingMarker(marker: Marker, seconds: boolean, name: boolean, e: Event) {
+	function startEditingMarker(marker: Marker, seconds: boolean, name: boolean, e?: Event) {
 		// Disable context menu
 		e?.preventDefault();
 		// Stop native seekbar behavior

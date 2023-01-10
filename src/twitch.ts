@@ -448,4 +448,14 @@ export class Twitch extends Cacheable implements IPlatform {
 			...await getCollections(this.name, await this.getEntityID())
 		];
 	}
+
+	async play() {
+		await clickNodes('[data-a-target="player-play-pause-button"]');
+	}
+	async pause() {
+		await clickNodes('[data-a-target="player-play-pause-button"]');
+	}
+	async isPlaying() {
+		return document.querySelector('[data-a-target="player-play-pause-button"]')!.classList.contains('player-button--pause');
+	}
 }

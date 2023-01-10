@@ -17,6 +17,9 @@ interface YTDPlayerElement extends PolymerElement {
 			isLive: boolean;
 			title: string;
 		};
+		getPlayerState: () => number;
+		playVideo: () => void;
+		pauseVideo: () => void;
 	}
 }
 
@@ -225,5 +228,17 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 			...(this.initialCollection ? [this.initialCollection] : []),
 			...await getCollections(this.name, await this.getEntityID())
 		];
+	}
+
+	async play() {
+		return this.getYTPlayerElement()!.getPlayer().playVideo();
+	}
+
+	async pause() {
+		return this.getYTPlayerElement()!.getPlayer().pauseVideo();
+	}
+
+	async isPlaying() {
+		return this.getYTPlayerElement()!.getPlayer().getPlayerState() !== 1;
 	}
 }

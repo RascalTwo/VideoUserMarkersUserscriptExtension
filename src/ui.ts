@@ -43,7 +43,7 @@ export async function dialog(
 		applyThemedStyles(form.style);
 		form.style.display = 'flex';
 		form.style.flexDirection = 'column';
-		form.textContent = message;
+		form.innerHTML = message;
 		const handleSubmit = (e?: Event) => {
 			e?.preventDefault();
 			const response = canceled ? null : generateResponse(form);
@@ -219,43 +219,6 @@ export const generateMarkerList = (
 		const existingList = document.querySelector<HTMLUListElement>('.r2_marker_list');
 		const list = existingList || (document.createElement('ul') as HTMLUListElement);
 		if (!existingList) {
-			const keydownHandler = (e: KeyboardEvent) => {
-				const target = e.target! as HTMLElement;
-				if (
-					['INPUT', 'TEXTAREA'].includes(target.tagName) ||
-					target.getAttribute('role') === 'textbox'
-				)
-					return;
-
-				const { key } = e;
-				const active = list.querySelector('li[data-r2_active_marker="true"]');
-				if (key === 'w' || key === 's') {
-					if (!active) makeActive(list.querySelector('li')!);
-					else if (key === 'w' && active.previousElementSibling?.tagName === 'LI')
-						makeActive(active.previousElementSibling as HTMLLIElement);
-					else if (key === 's' && active.nextElementSibling?.tagName === 'LI')
-						makeActive(active.nextElementSibling as HTMLLIElement);
-					else {
-						return;
-					}
-					e.preventDefault();
-					e.stopPropagation();
-				} else if (key === 'a' || key === 'd') {
-					if (!active) return;
-					e.preventDefault();
-					e.stopPropagation();
-					return adjustMarkerSeconds(
-						getElementMarker({ target: active })!,
-						key === 'a' ? -1 : 1
-					).then(marker => (!platform.isLive() ? setTime(marker.when) : undefined));
-				} else if (key === 'n' && active) {
-					return startEditingMarker(getElementMarker({ target: active })!, false, true, e);
-				} else if (!platform.isLive() && (key === 'q' || key === 'e'))
-					getCurrentTimeLive().then(seconds => setTime(seconds + (key === 'q' ? -1 : 1)));
-			};
-			window.addEventListener('keydown', keydownHandler);
-			closeFuncs.push(() => window.removeEventListener('keydown', keydownHandler));
-
 			list.className = 'r2_marker_list';
 			list.style.position = 'absolute';
 			list.style.zIndex = (9000 + getDialogCount()).toString();
