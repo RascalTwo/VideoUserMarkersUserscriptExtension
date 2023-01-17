@@ -55,7 +55,14 @@ export const FORMATTERS = {
 				.split('\n')
 				.map(line => line.trim())
 				.filter(Boolean)) {
-				const [dhms, title, description] = line.split('\t');
+				let [dhms, title, description] = line.split(/\t| {2}/g);
+				if (!title) {
+					let titleParts = [];
+					([dhms, ...titleParts] = line.split(' '));
+					title = titleParts.join(' ');
+				}
+				if (!title) title = 'Untitled';
+
 				const when = DHMStoSeconds(dhms.split(':').map(Number));
 				yield { _id: ObjectId(), collectionRef: ObjectId(), title, when, description };
 			}
