@@ -1,11 +1,12 @@
 {
   "name": "video-user-markers-userscript-extension",
-  "version": "1.15.0",
+  "version": "1.15.1",
   "description": "",
   "scripts": {
     "prebuild": "node ./scripts/prebuild.js",
     "build": "webpack && web-ext build --source-dir=webext --artifacts-dir=dist --filename=extension.zip --overwrite-dest",
     "dev": "npx nodemon -e ts --exec 'npm run build' --watch src --ignore src/constants.ts",
+    "publish": "./publish.sh",
     "test": "node ./scripts/test.js && c8 report --reporter=lcov --reporter=html --reporter=text --src=src"
   },
   "author": "",

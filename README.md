@@ -17,12 +17,13 @@ This userscript allows users to add markers to a Video, additionally allowing th
 
 ### Web Extension
 
-- Download [`dist/extension.zip`](../../blob/dist/dist/extension.zip)
 - Firefox:
-  - Go to `about:debugging`
-  - Click `Load Temporary Add-on`
-  - Choose the downloaded `extension.zip`
+  - Download the `*.xpi` file from [`dist`](../../blob/dist/dist/extension.zip)
+  - Go to `about:addons`
+  - Click the gear, then choose `Install Add-on from File...`
+  - Choose the downloaded `*.xpi`
 - Chrome:
+  - Download [`dist/extension.zip`](../../blob/dist/dist/extension.zip)
   - Go to `chrome://extensions`
   - Click `Load Unpacked`
   - Choose the downloaded `extension.zip`
