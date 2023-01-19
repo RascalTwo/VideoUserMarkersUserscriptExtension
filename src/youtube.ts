@@ -36,6 +36,11 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 
 		const collectionId = ObjectId();
 
+		let createdAt;
+		try {
+			createdAt = new Date((document.querySelector('#info-container yt-formatted-string') as PolymerElement)!.get('__data').text.runs[2].text).toISOString()
+		} catch (_) {}
+
 		const foundInitialCollection = {
 			_id: collectionId,
 			entity: {
@@ -43,7 +48,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 				type: this.name,
 				thumbnail: `https://img.youtube.com/vi/${await this.getEntityID()}/maxresdefault.jpg`,
 				rawThumbnail: `https://img.youtube.com/vi/${await this.getEntityID()}/maxresdefault.jpg`,
-				createdAt: new Date((document.querySelector('#info-container yt-formatted-string') as PolymerElement)!.get('__data').text.runs[2].text).toISOString(),
+				createdAt,
 			},
 			author: { _id: 'WEBSITE', username: 'YouTube Video Author' },
 			title: this.getYTPlayerElement()!.getPlayer().getVideoData().title,
