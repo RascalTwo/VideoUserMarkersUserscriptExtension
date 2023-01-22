@@ -1,6 +1,6 @@
 {
   "name": "video-user-markers-userscript-extension",
-  "version": "1.16.2",
+  "version": "1.16.3",
   "description": "Allows the creation of time-based markers in videos",
   "homepage": "https://video-user-markers.cyclic.app",
   "bugs": "https://github.com/RascalTwo/VideoUserMarkersUserscriptExtension/issues",
@@ -9,7 +9,8 @@
     "build": "webpack && web-ext build --source-dir=webext --artifacts-dir=dist --filename=extension.zip --overwrite-dest",
     "dev": "npx nodemon -e ts --exec 'npm run build' --watch src --ignore src/constants.ts",
     "publish": "./publish.sh",
-    "test": "node ./scripts/test.js && c8 report --reporter=lcov --reporter=html --reporter=text --src=src"
+    "test": "node ./scripts/test.js && c8 report --reporter=lcov --reporter=html --reporter=text --src=src",
+    "prepare": "husky install"
   },
   "author": {
     "name": "Rascal_Two",
@@ -31,7 +32,9 @@
   "devDependencies": {
     "@theintern/istanbul-loader": "^1.0.0-beta.3",
     "c8": "^7.12.0",
+    "husky": "^8.0.0",
     "playwright": "^1.27.1",
+    "simple-git": "^3.16.0",
     "web-ext": "^7.4.0"
   }
 }

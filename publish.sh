@@ -11,7 +11,7 @@ rm -f dist/*.xpi
 npx web-ext sign --source-dir=webext --artifacts-dir=dist
 git add dist/*.xpi -f
 
-git commit -m 'Build'
+git commit -m 'Build' --no-verify
 git push -u origin dist -f
 
 git checkout main
