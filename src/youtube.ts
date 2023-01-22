@@ -43,7 +43,9 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 			createdAt = new Date((document.querySelector('#info-container yt-formatted-string') as PolymerElement)!.get('__data').text.runs[2].text).toISOString()
 		} catch (_) {}
 
-		const foundInitialCollection = {
+		const ytPlayerElement = this.getYTPlayerElement()!;
+
+		const foundInitialCollection = ytPlayerElement.dataset.r2InitialCollection ? JSON.parse(ytPlayerElement.dataset.r2InitialCollection) : {
 			_id: collectionId,
 			entity: {
 				_id: await this.getEntityID(),
@@ -53,9 +55,9 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 				createdAt,
 			},
 			author: { _id: 'WEBSITE', username: 'YouTube Video Author' },
-			title: this.getYTPlayerElement()!.getPlayer().getVideoData().title,
+			title: ytPlayerElement.getPlayer().getVideoData().title,
 			description: '',
-			markers: this.getDescriptionChaptersMarkerMap(this.getYTPlayerElement()!.get('watchNextData'))?.chapters.map((chapter: any) => ({
+			markers: this.getDescriptionChaptersMarkerMap(ytPlayerElement.get('watchNextData'))?.chapters.map((chapter: any) => ({
 				_id: ObjectId(),
 				collectionRef: collectionId,
 				when: chapter.chapterRenderer.timeRangeStartMillis / 1000,
@@ -67,6 +69,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 		} as Collection;
 
 		this.initialCollection = foundInitialCollection.markers.length ? foundInitialCollection : null;
+		if (this.initialCollection && !ytPlayerElement.dataset.r2InitialCollection) ytPlayerElement.dataset.r2InitialCollection = JSON.stringify(this.initialCollection);
 
 		return foundMarkers.length ? {
 			_id: collectionId,
@@ -77,7 +80,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 				createdAt: new Date((document.querySelector('#info-container yt-formatted-string') as PolymerElement)!.get('__data').text.runs[2].text).toISOString(),
 			},
 			author: currentUser,
-			title: this.getYTPlayerElement()!.getPlayer().getVideoData().title,
+			title: ytPlayerElement.getPlayer().getVideoData().title,
 			description: '',
 			markers: foundMarkers,
 			createdAt: now,
