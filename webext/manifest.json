@@ -1,7 +1,7 @@
 {
   "manifest_version": 2,
   "name": "Video User Markers",
-  "version": "1.16.1",
+  "version": "1.16.2",
   "description": "Allows the creation of time-based markers in videos",
   "icons": {
     "48": "images/favicon.svg",
@@ -24,5 +24,10 @@
         "inject.js"
       ]
     }
-  ]
+  ],
+  "developer": {
+    "name": "Rascal_Two",
+    "url": "https://rascaltwo.com"
+  },
+  "homepage_url": "https://video-user-markers.cyclic.app"
 }
