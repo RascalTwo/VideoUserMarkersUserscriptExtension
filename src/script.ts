@@ -25,7 +25,7 @@ import {
 	deleteFromLocalStorage,
 } from './helpers';
 import { generateMarkerList as generateMarkerList } from './ui';
-import type { Marker } from './types';
+import type { Collection, Marker } from './types';
 import {
 	generateToken,
 	getCollection,
@@ -82,7 +82,7 @@ log('Script Started');
 	// Get last segment of URL, which is the video ID
 	let user = await getCurrentUser();
 	let otherCollections = await platform.getCollections();
-	let { collection: _collection, updatedAt } = await (async () => {
+	let { collection: _collection, updatedAt } = await (async (): Promise<{ collection: Collection | null, updatedAt: string }> => {
 		const {
 			formatter,
 			rawMarkers,
@@ -99,12 +99,14 @@ log('Script Started');
 			return { collection: foundCollection, updatedAt };
 		}
 
-		const firstOther = otherCollections.find(c => c.author._id !== 'AUTHOR');
+		const firstOther = otherCollections.find(c => c.author._id !== 'WEBSITE');
 		if (firstOther) {
-			return { collection: (await getCollection(firstOther._id))!, updatedAt };
+			const collection = (await getCollection(firstOther._id))!
+			return { collection, updatedAt: collection.updatedAt };
 		}
 
-		return { collection: await platform.createInitialCollection(foundMarkers, user), updatedAt };
+		const collection = await platform.createInitialCollection(foundMarkers, user)
+		return { collection, updatedAt: collection.createdAt };
 	})();
 	const collection = _collection;
 
@@ -345,7 +347,10 @@ log('Script Started');
 			if (!collectionId) return;
 			const otherCollection = otherCollections.find(c => c._id === collectionId)!;
 			Object.assign(collection, otherCollection.author._id === 'WEBSITE' ? otherCollection : (await getCollection(collectionId))!);
-			handleMarkerUpdate(true);
+			await handleMarkerUpdate(true);
+
+			updatedAt = collection.updatedAt;
+			return handleMarkerUpdate(false);
 		};
 
 		const importExportMenu = async () => {
