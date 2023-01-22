@@ -244,6 +244,6 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 	}
 
 	async isPlaying() {
-		return this.getYTPlayerElement()!.getPlayer().getPlayerState() !== 1;
+		return this.getYTPlayerElement()!.getPlayer().getPlayerState() === 1;
 	}
 }

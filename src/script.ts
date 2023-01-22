@@ -259,9 +259,11 @@ log('Script Started');
 		 * Add marker to current time
 		 */
 		const addMarkerHere = async () => {
+			const pauseAndResume = !platform.isLive() && await platform.isPlaying();
+			if (pauseAndResume) await platform.pause();
 			let seconds = await platform.getCurrentTimeLive();
 			let name = await platform.dialog('prompt', 'Marker Name');
-			if (!name) return;
+			if (!name) return pauseAndResume && platform.play();
 
 			if (['t+', 't-'].some(cmd => name.toLowerCase().startsWith(cmd))) {
 				const direction = name[1] === '+' ? 1 : -1;
@@ -278,7 +280,8 @@ log('Script Started');
 				description: '',
 			});
 			if (platform.isLive()) writeToClipboard(await platform.generateMarkerURL(seconds));
-			return handleMarkerUpdate(true);
+			await handleMarkerUpdate(true);
+			return pauseAndResume && platform.play();
 		};
 
 		/**
