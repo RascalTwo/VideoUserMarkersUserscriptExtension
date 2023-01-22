@@ -20,7 +20,6 @@ import {
 	ObjectId,
 	NOOP,
 	getPlatform,
-	isDarkMode,
 	writeToClipboard,
 	deleteFromLocalStorage,
 } from './helpers';
@@ -115,17 +114,59 @@ log('Script Started');
 		return;
 	}
 
+	function updateSummaryBadge(){
+		const summary = document.querySelector('.r2_markers_ui')?.querySelector('summary');
+		if (!summary) return;
+
+		const hasUnsavedLocalChanges = collection!.updatedAt !== updatedAt
+		const otherCollectionCount = otherCollections.filter(c => c.author._id !== 'WEBSITE' && c.author._id !== user?._id).length
+		const text = (otherCollectionCount || '') + (hasUnsavedLocalChanges ? '*' : '');
+
+		const span = summary.querySelector('span')!;
+		span.textContent = text;
+		span.style.display = text ? 'inline' : 'none';
+		span.title = hasUnsavedLocalChanges ? 'Unsaved Local Changes' : '';
+	}
+
 	addUninstallationStep(
 		await (async () => {
 			const ui = document.createElement('details');
 			ui.className = 'r2_markers_ui';
 			ui.style.margin = '0.5em';
 			ui.style.padding = '0.5em';
-			ui.style.border = '1px solid ' + (isDarkMode() ? 'white' : 'black');
 
 			const summary = document.createElement('summary');
-			const otherCollectionCount = otherCollections.filter(c => c.author._id !== 'AUTHOR' && c.author._id !== user?._id).length
-			summary.textContent = `Video User Markers (${otherCollectionCount})`;
+			summary.style.listStyle = 'none';
+			summary.style.textAlign = 'center';
+			summary.style.cursor = 'pointer';
+			summary.style.display = 'flex';
+			summary.style.justifyContent = 'center';
+
+			const imgAndBadgeWrapper = document.createElement('div');
+			imgAndBadgeWrapper.style.position = 'relative';
+			imgAndBadgeWrapper.style.width = 'max-content';
+
+			const faviconImage = document.createElement('img');
+			faviconImage.src = 'https://video-user-markers.cyclic.app/favicon.svg';
+			imgAndBadgeWrapper.appendChild(faviconImage);
+
+			const badge = document.createElement('span');
+			badge.style.position = 'absolute';
+			badge.style.top = '0';
+			badge.style.right = '0';
+			badge.style.backgroundColor = 'red';
+			badge.style.borderRadius = '50%';
+			badge.style.width = '1em';
+			badge.style.height = '1em';
+			badge.style.lineHeight = '1em';
+			badge.style.textAlign = 'center';
+			badge.style.color = 'white';
+			badge.style.fontSize = '0.5em';
+			badge.style.fontWeight = 'bold';
+			imgAndBadgeWrapper.appendChild(badge);
+
+			summary.appendChild(imgAndBadgeWrapper);
+
 			ui.appendChild(summary);
 
 			const wrapper = document.createElement('div');
@@ -148,6 +189,7 @@ log('Script Started');
 			wrapper.appendChild(addMarker);
 
 			await platform.attachMenu(ui);
+			updateSummaryBadge();
 			return () => ui.remove();
 		})()
 	);
@@ -169,14 +211,7 @@ log('Script Started');
 				saveToLocalStorage(eid, formatter, collection!, updatedAt)
 			);
 		},
-		() => {
-			const summary = document.querySelector('.r2_markers_ui')?.querySelector('summary');
-			if (!summary) return;
-
-			const otherCollectionCount = otherCollections.filter(c => c.author._id !== 'AUTHOR' && c.author._id !== user?._id).length
-			if (collection!.updatedAt !== updatedAt) summary.textContent = `Video User Markers (${otherCollectionCount})*`;
-			else summary.textContent = `Video User Markers (${otherCollectionCount})`;
-		},
+		updateSummaryBadge
 	];
 
 	function seekToMarker(marker: Marker, e: Event) {
