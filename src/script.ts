@@ -22,6 +22,7 @@ import {
 	getPlatform,
 	writeToClipboard,
 	deleteFromLocalStorage,
+	isDarkMode,
 } from './helpers';
 import { generateMarkerList as generateMarkerList } from './ui';
 import type { Collection, Marker } from './types';
@@ -453,6 +454,13 @@ log('Script Started');
 			}).map(([key, action]) => `${key} -> ${action}`).join('<br/>'));
 		}
 
+		async function shareCollection(){
+			if (!collection?.public) return platform!.dialog('alert', 'Collection must be exported to the cloud as public to be sharable');
+			const url = `https://video-user-markers.cyclic.app/v/${collection.entity._id}/${collection._id}`;
+			await writeToClipboard(url);
+			return platform!.dialog('alert', `Copied URL to clipboard: <a href="${url}" target="_blank" style="display: inline-block; color: ${isDarkMode() ? 'white' : 'black'};">${url}</a>`)
+		}
+
 		/**
 		 * Menu for importing or exporting
 		 */
@@ -462,6 +470,7 @@ log('Script Started');
 				Edit: 'e',
 				List: 'l',
 				[user ? `Logout (${user.username})` : 'Login']: 'a',
+				'Share Collection': 's',
 				'Keyboard Shortcuts': '?'
 			}));
 			if (!choice) return;
@@ -469,6 +478,7 @@ log('Script Started');
 			else if (choice === 'e') return editAllMarkers();
 			else if (choice === 'l') return markerList.setMarkerList(true);
 			else if (choice === 'a') return user ? (user = null) : login();
+			else if (choice === 's') return shareCollection();
 			else if (choice === '?') return showKeyboardShortcuts();
 		};
 		return { addMarkerHere, mainMenu, showKeyboardShortcuts }
