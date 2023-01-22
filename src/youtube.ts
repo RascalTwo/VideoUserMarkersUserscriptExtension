@@ -25,13 +25,15 @@ interface YTDPlayerElement extends PolymerElement {
 
 export class YouTube extends Cacheable implements IPlatform, Cacheable {
 	name: 'Twitch' | 'YouTube';
-	private initialCollection: Collection | null;
+	private initialCollection: Collection | null | undefined;
 	constructor() {
 		super();
 		this.name = 'YouTube';
-		this.initialCollection = null;
+		this.initialCollection = undefined;
 	}
 	async createInitialCollection(foundMarkers: Marker[], currentUser: User | null): Promise<Collection> {
+		if (this.initialCollection) return this.initialCollection;
+
 		const now = new Date().toISOString();
 
 		const collectionId = ObjectId();
@@ -55,7 +57,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 			description: '',
 			markers: this.getDescriptionChaptersMarkerMap(this.getYTPlayerElement()!.get('watchNextData'))?.chapters.map((chapter: any) => ({
 				_id: ObjectId(),
-				collectionId,
+				collectionRef: collectionId,
 				when: chapter.chapterRenderer.timeRangeStartMillis / 1000,
 				title: chapter.chapterRenderer.title.simpleText,
 				description: ''
@@ -64,9 +66,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 			updatedAt: now,
 		} as Collection;
 
-		if (foundInitialCollection.markers.length) {
-			this.initialCollection = foundInitialCollection;
-		}
+		this.initialCollection = foundInitialCollection.markers.length ? foundInitialCollection : null;
 
 		return foundMarkers.length ? {
 			_id: collectionId,
@@ -229,6 +229,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 	}
 
 	async getCollections(): Promise<MarkerlessCollection[]> {
+		await this.createInitialCollection([], null);
 		return [
 			...(this.initialCollection ? [this.initialCollection] : []),
 			...await getCollections(this.name, await this.getEntityID())
