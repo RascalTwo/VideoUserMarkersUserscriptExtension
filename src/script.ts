@@ -417,17 +417,19 @@ log('Script Started');
 		 * Menu for importing or exporting
 		 */
 		const mainMenu = async () => {
-			const choice = await platform.dialog('choose', 'R2 Twitch User-Markers', () => ({
+			const choice = await platform.dialog('choose', 'Video User Markers', () => ({
 				'Import/Export': 'x',
 				Edit: 'e',
 				List: 'l',
 				[user ? `Logout (${user.username})` : 'Login']: 'a',
+				'Keyboard Shortcuts': '?'
 			}));
 			if (!choice) return;
 			else if (choice === 'x') return importExportMenu();
 			else if (choice === 'e') return editAllMarkers();
 			else if (choice === 'l') return markerList.setMarkerList(true);
 			else if (choice === 'a') return user ? (user = null) : login();
+			else if (choice === '?') return showKeyboardShortcuts();
 		};
 		return { addMarkerHere, mainMenu, showKeyboardShortcuts }
 	})();
