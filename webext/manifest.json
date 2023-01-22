@@ -1,12 +1,14 @@
 {
   "manifest_version": 2,
-  "name": "Video Markers",
-  "version": "1.16.0",
+  "name": "Video User Markers",
+  "version": "1.16.1",
   "description": "Allows the creation of time-based markers in videos",
   "icons": {
-    "48": "border-48.png"
+    "48": "images/favicon.svg",
+    "96": "images/favicon.svg"
   },
   "browser_action": {
+    "default_icon": "images/favicon.svg",
     "default_popup": "action/popup.html"
   },
   "permissions": [
