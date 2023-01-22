@@ -43,6 +43,7 @@ export async function dialog(
 		applyThemedStyles(form.style);
 		form.style.display = 'flex';
 		form.style.flexDirection = 'column';
+		form.style.gap = '1rem'
 		form.innerHTML = message;
 		const handleSubmit = (e?: Event) => {
 			e?.preventDefault();
@@ -113,6 +114,7 @@ export async function dialog(
 		const actions = document.createElement('div');
 		actions.style.flex = '1';
 		actions.style.display = 'flex';
+		actions.style.gap = '1rem';
 		const submit = document.createElement('button');
 		submit.className = buttonClass;
 		submit.style.flex = '1';
