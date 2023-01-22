@@ -231,7 +231,7 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 		return eid;
 	}
 
-	async getCollections(): Promise<MarkerlessCollection[]> {
+	async getCollections(): Promise<Array<Collection | MarkerlessCollection>> {
 		await this.createInitialCollection([], null);
 		return [
 			...(this.initialCollection ? [this.initialCollection] : []),

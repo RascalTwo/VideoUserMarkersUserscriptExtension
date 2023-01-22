@@ -35,7 +35,7 @@ export interface Collection {
 	markers: Marker[];
 }
 
-export type MarkerlessCollection = Omit<Collection, 'markers'>;
+export type MarkerlessCollection = Omit<Collection, 'markers'> & { markerCount: number };
 
 export interface IPlatform {
 	name: 'Twitch' | 'YouTube';
@@ -60,7 +60,7 @@ export interface IPlatform {
 	isLive(): boolean;
 	dialog(...args: ParametersExceptFirst<typeof dialog>): ReturnType<typeof dialog>;
 	createInitialCollection(foundMarkers: Marker[], currentUser: User | null): Promise<Collection>;
-	getCollections(): Promise<MarkerlessCollection[]>;
+	getCollections(): Promise<Array<Collection | MarkerlessCollection>>;
 	isPlaying(): Promise<boolean>
 	play(): Promise<void>
 	pause(): Promise<void>

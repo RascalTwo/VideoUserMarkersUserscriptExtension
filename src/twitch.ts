@@ -441,7 +441,7 @@ export class Twitch extends Cacheable implements IPlatform {
 		)}`;
 	}
 
-	async getCollections(): Promise<MarkerlessCollection[]> {
+	async getCollections(): Promise<Array<Collection | MarkerlessCollection>> {
 		const initialCollection = await this.createInitialCollection([], null);
 		return [
 			...(initialCollection.markers.length ? [initialCollection] : []),

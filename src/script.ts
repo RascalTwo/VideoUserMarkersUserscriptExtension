@@ -376,7 +376,7 @@ log('Script Started');
 		const importMenu = async () => {
 			const collectionId = await platform.dialog('choose', 'Import from...', () =>
 				otherCollections.reduce((acc, collection) => {
-					acc[`${collection.author ? `[${collection.author.username}] ` : ''}${collection.title}`] = collection._id;
+					acc[`${collection.author ? `[${collection.author.username}] ` : ''}${collection.title} (${'markers' in collection ? collection.markers.length : collection.markerCount})`] = collection._id;
 					return acc;
 				}, {} as Record<string, string>)
 			);
