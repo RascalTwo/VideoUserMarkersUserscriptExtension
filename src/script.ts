@@ -310,13 +310,17 @@ log('Script Started');
 				name = name.substring(2 + offset.toString().length).trim();
 			}
 
-			collection!.markers.push({
+			const newMarker = {
 				_id: ObjectId(),
 				collectionRef: collection!._id,
 				when: seconds,
 				title: name,
 				description: '',
-			});
+			}
+			const insertIndex = collection!.markers.findIndex(m => m.when > seconds);
+			if (insertIndex !== -1) collection!.markers.splice(insertIndex, 0, newMarker);
+			else collection!.markers.push(newMarker);
+
 			if (platform.isLive()) writeToClipboard(await platform.generateMarkerURL(seconds));
 			await handleMarkerUpdate(true);
 			return pauseAndResume && platform.play();
