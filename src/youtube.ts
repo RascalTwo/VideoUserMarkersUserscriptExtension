@@ -45,13 +45,15 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 
 		const ytPlayerElement = this.getYTPlayerElement()!;
 
-		const foundInitialCollection = ytPlayerElement.dataset.r2InitialCollection ? JSON.parse(ytPlayerElement.dataset.r2InitialCollection) : {
+		const entityID = await this.getEntityID();
+		const hasPreviouslySavedInitialCollection = ytPlayerElement.dataset.r2InitialCollectionID === entityID && ytPlayerElement.dataset.r2InitialCollection
+		const foundInitialCollection = hasPreviouslySavedInitialCollection ? JSON.parse(ytPlayerElement.dataset.r2InitialCollection!) : {
 			_id: collectionId,
 			entity: {
-				_id: await this.getEntityID(),
+				_id: entityID,
 				type: this.name,
-				thumbnail: `https://img.youtube.com/vi/${await this.getEntityID()}/maxresdefault.jpg`,
-				rawThumbnail: `https://img.youtube.com/vi/${await this.getEntityID()}/maxresdefault.jpg`,
+				thumbnail: `https://img.youtube.com/vi/${entityID}/maxresdefault.jpg`,
+				rawThumbnail: `https://img.youtube.com/vi/${entityID}/maxresdefault.jpg`,
 				createdAt,
 			},
 			author: { _id: 'WEBSITE', username: 'YouTube Video Author' },
@@ -69,14 +71,17 @@ export class YouTube extends Cacheable implements IPlatform, Cacheable {
 		} as Collection;
 
 		this.initialCollection = foundInitialCollection.markers.length ? foundInitialCollection : null;
-		if (this.initialCollection && !ytPlayerElement.dataset.r2InitialCollection) ytPlayerElement.dataset.r2InitialCollection = JSON.stringify(this.initialCollection);
+		if (this.initialCollection && !hasPreviouslySavedInitialCollection) {
+			ytPlayerElement.dataset.r2InitialCollectionID = entityID;
+			ytPlayerElement.dataset.r2InitialCollection = JSON.stringify(this.initialCollection);
+		}
 
 		return foundMarkers.length ? {
 			_id: collectionId,
 			entity: {
-				_id: await this.getEntityID(),
+				_id: entityID,
 				type: this.name,
-				thumbnail: `https://img.youtube.com/vi/${await this.getEntityID()}/maxresdefault.jpg`,
+				thumbnail: `https://img.youtube.com/vi/${entityID}/maxresdefault.jpg`,
 				createdAt: new Date((document.querySelector('#info-container yt-formatted-string') as PolymerElement)!.get('__data').text.runs[2].text).toISOString(),
 			},
 			author: currentUser,
