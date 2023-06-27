@@ -90,6 +90,7 @@ export async function dialog(
 					Object.entries(sideEffect!(form)).reduce((fragment, [key, value]) => {
 						const button = document.createElement('button');
 						button.className = buttonClass;
+						button.style.width = 'auto';
 						button.textContent = key;
 						button.value = JSON.stringify(value);
 						button.addEventListener('click', () => (form.dataset.value = button.value));
@@ -117,6 +118,7 @@ export async function dialog(
 		actions.style.gap = '1rem';
 		const submit = document.createElement('button');
 		submit.className = buttonClass;
+		submit.style.width = 'auto';
 		submit.style.flex = '1';
 		submit.textContent = 'OK';
 		submit.type = 'submit';
@@ -124,6 +126,7 @@ export async function dialog(
 
 		const cancel = document.createElement('button');
 		cancel.className = buttonClass;
+		cancel.style.width = 'auto';
 		cancel.style.flex = '1';
 		cancel.textContent = 'Cancel';
 		cancel.addEventListener('click', () => (canceled = true));
@@ -283,6 +286,7 @@ export const generateMarkerList = (
 
 			const closeButton = document.createElement('button');
 			closeButton.className = platform.getButtonClass();
+			closeButton.style.width = 'auto';
 			closeButton.style.float = 'right';
 			closeButton.textContent = 'Close';
 			closeButton.addEventListener('click', () => setMarkerList(false));
@@ -344,6 +348,7 @@ export const generateMarkerList = (
 
 				const decrease = document.createElement('button');
 				decrease.className = platform.getButtonClass();
+				decrease.style.width = 'auto';
 				decrease.style.display = 'inline-block';
 				decrease.textContent = '-';
 				decrease.title = 'Subtract 1 second';
@@ -371,6 +376,7 @@ export const generateMarkerList = (
 
 				const increase = document.createElement('button');
 				increase.className = platform.getButtonClass();
+				increase.style.width = 'auto';
 				increase.style.display = 'inline-block';
 				increase.textContent = '+';
 				increase.title = 'Add 1 second';
@@ -411,6 +417,7 @@ export const generateMarkerList = (
 				document.createElement('button');
 			if (!existingLi) {
 				share.className = platform.getButtonClass();
+				share.style.width = 'auto';
 				share.classList.add('r2_marker_share');
 				share.style.float = 'right';
 				share.textContent = 'Share';
@@ -425,6 +432,7 @@ export const generateMarkerList = (
 				document.createElement('button');
 			if (!existingLi) {
 				deleteBtn.className = platform.getButtonClass();
+				deleteBtn.style.width = 'auto';
 				deleteBtn.classList.add('r2_marker_delete');
 				deleteBtn.style.float = 'right';
 				deleteBtn.textContent = 'Delete';
@@ -448,6 +456,7 @@ export const generateMarkerList = (
 		if (!existingList) {
 			const closeButton = document.createElement('button');
 			closeButton.className = platform.getButtonClass();
+			closeButton.style.width = 'auto';
 			closeButton.style.float = 'right';
 			closeButton.textContent = 'Close';
 			closeButton.addEventListener('click', () => setMarkerList(false));
