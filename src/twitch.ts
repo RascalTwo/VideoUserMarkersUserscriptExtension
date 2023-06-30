@@ -85,8 +85,7 @@ export class Twitch extends Cacheable implements IPlatform {
 	}
 	isLive(): boolean {
 		const parts = window.location.pathname.split('/').slice(1);
-		// @ts-ignore
-		if (!parts.length === 1 && !!parts[0]) return false;
+		if (parts[0] === 'videos' && parts.length === 2) return false;
 		return !!document.querySelector('.user-avatar-card__live');
 	}
 
@@ -297,6 +296,7 @@ export class Twitch extends Cacheable implements IPlatform {
 
 				let marker;
 				if (this.isVOD()) {
+					if (document.querySelector('.video-ref [data-a-target="video-ad-countdown"]')) return;
 					const now = await this.getCurrentTimeLive();
 					marker = collection!.markers.filter(m => Math.floor(m.when) <= now).slice(-1)[0];
 				} else {
@@ -456,6 +456,7 @@ export class Twitch extends Cacheable implements IPlatform {
 		await clickNodes('[data-a-target="player-play-pause-button"]');
 	}
 	async isPlaying() {
-		return document.querySelector('[data-a-target="player-play-pause-button"]')!.classList.contains('player-button--pause');
+		console.log(document.querySelector<HTMLDivElement>('[data-a-target="player-play-pause-button"]')!.dataset.aPlayerState)
+		return document.querySelector<HTMLDivElement>('[data-a-target="player-play-pause-button"]')!.dataset.aPlayerState === 'playing';
 	}
 }

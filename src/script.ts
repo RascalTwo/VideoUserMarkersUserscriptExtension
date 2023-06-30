@@ -95,7 +95,7 @@ log('Script Started');
 		}
 		const foundMarkers = FORMATTERS[formatter].deserializeAll(rawMarkers || '[]') as Marker[];
 		if (foundCollection) {
-			if (foundMarkers.length) foundCollection.markers = foundMarkers;
+			if (!foundCollection.markers?.length) foundCollection.markers = foundMarkers;
 			return { collection: foundCollection, updatedAt };
 		}
 

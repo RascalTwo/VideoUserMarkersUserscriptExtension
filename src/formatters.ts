@@ -34,6 +34,7 @@ class MarkerFormatter {
 export const FORMATTERS = {
 	json: class JSONFormatter extends MarkerFormatter {
 		static serializeAll(markers: Marker[]) {
+			console.log('ser json', markers);
 			return JSON.stringify(markers);
 		}
 		static deserializeAll(content: string) {
