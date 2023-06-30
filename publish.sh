@@ -9,7 +9,7 @@ git add dist/userscript.js -f
 git add dist/firefox-unsigned.zip -f
 
 rm -f dist/*.xpi
-npx web-ext sign --source-dir=webext --artifacts-dir=dist
+npx web-ext sign --source-dir=webext --artifacts-dir=dist --api-key=$MOZILLA_API_KEY --api-secret=$MOZILLA_API_SECRET
 git add dist/*.xpi -f
 
 node webext/scripts/build-manifest.js chrome
