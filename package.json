@@ -1,8 +1,8 @@
 {
   "name": "video-user-markers-userscript-extension",
-  "version": "1.22.7",
+  "version": "1.23.0",
   "description": "Allows the creation of time-based markers in videos",
-  "homepage": "https://video-user-markers.cyclic.app",
+  "homepage": "https://vum.rascaltwo.com",
   "bugs": "https://github.com/RascalTwo/VideoUserMarkersUserscriptExtension/issues",
   "scripts": {
     "prebuild": "node ./scripts/prebuild.js",

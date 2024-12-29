@@ -115,7 +115,7 @@ log('Script Started');
 		return;
 	}
 
-	function updateSummaryBadge(){
+	function updateSummaryBadge() {
 		const summary = document.querySelector('.r2_markers_ui')?.querySelector('summary');
 		if (!summary) return;
 
@@ -148,7 +148,7 @@ log('Script Started');
 			imgAndBadgeWrapper.style.width = 'max-content';
 
 			const faviconImage = document.createElement('img');
-			faviconImage.src = 'https://video-user-markers.cyclic.app/favicon.svg';
+			faviconImage.src = 'https://vum.rascaltwo.com/favicon.svg';
 			imgAndBadgeWrapper.appendChild(faviconImage);
 
 			const badge = document.createElement('span');
@@ -460,9 +460,9 @@ log('Script Started');
 			}).map(([key, action]) => `${key} -> ${action}`).join('<br/>'));
 		}
 
-		async function shareCollection(){
+		async function shareCollection() {
 			if (!collection?.public) return platform!.dialog('alert', 'Collection must be exported to the cloud as public to be sharable');
-			const url = `https://video-user-markers.cyclic.app/v/${collection.entity._id}/${collection._id}`;
+			const url = `https://vum.rascaltwo.com/v/${collection.entity._id}/${collection._id}`;
 			await writeToClipboard(url);
 			return platform!.dialog('alert', `Copied URL to clipboard: <a href="${url}" target="_blank" style="display: inline-block; color: ${isDarkMode() ? 'white' : 'black'};">${url}</a>`)
 		}
